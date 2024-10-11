@@ -1,10 +1,11 @@
 import os
 import torch
+import time
 import pandas as pd
 from transformers import pipeline
 from huggingface_hub import login
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+import mysql.connector
+from mysql.connector import Error
 
 # 환경 변수에서 API 키 가져오기
 os.environ["HF_API_KEY"] = "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"
@@ -16,97 +17,75 @@ login(api_key)
 # GPU가 사용 가능한지 확인
 device = 0 if torch.cuda.is_available() else -1
 
-# 1. 책 데이터 불러오기
-file_path = 'vast_book.xlsx'  # 실제 데이터 파일 경로를 지정하세요.
-df = pd.read_excel(file_path, engine='openpyxl')
-
-# 2. 데이터 구조 확인 및 딕셔너리 형태로 저장
-book_info = {}
-for index, row in df.iterrows():
-    title = row['제목']  # 데이터프레임 열 이름에 맞게 변경하세요.
-    author = row['작가']
-    date = row['출간일']
-    price = row['가격']
-    book_info[title] = {
-        'author': author,
-        'price': price,
-        'date': date
-    }
-
-# 3. 후보 레이블 읽기
-candidate_labels = []
-with open('labels.txt', 'r', encoding='utf-8') as file:
-    candidate_labels = [line.strip() for line in file]
-
-# 4. 일반 질문 응답 파일 읽기
-responses = {}
-with open('responses.txt', 'r', encoding='utf-8') as file:
-    for line in file:
-        label, response = line.strip().split(": ")
-        responses[label] = response
-
-# 5. 책 제목 목록 추출 및 TF-IDF 벡터 생성
-titles = list(book_info.keys())
-vectorizer = TfidfVectorizer()
-tfidf_matrix = vectorizer.fit_transform(titles)
-
-# 6. Zero-shot classification 의도 분류기 로드
+# 의도 분류기 로드
 classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli", device=device)
 
-# 7. 책 정보 찾기 함수 정의
-def get_book_info(user_input):
-    # 사용자 입력과 책 제목 간의 유사도 계산
-    input_tfidf = vectorizer.transform([user_input])
-    cosine_similarities = cosine_similarity(input_tfidf, tfidf_matrix).flatten()
-
-    # 가장 유사한 책 제목 찾기
-    top_index = cosine_similarities.argmax()
-    top_title = titles[top_index]
-    top_score = cosine_similarities[top_index]
-
-    # 신뢰도가 높은 경우 책 정보 반환
-    if top_score > 0.1:
-        book_details = book_info[top_title]
-        response = (
-            f"책 제목: {top_title}\n"
-            f"저자: {book_details['author']}\n"
-            f"출간일: {book_details['date']}\n"
-            f"가격: {book_details['price']}"
+# MySQL 데이터베이스에 연결
+def connect_to_db():
+    try:
+        connection = mysql.connector.connect(
+            host='10.10.16.157',       # MySQL 서버 주소
+            database='smartlibrary', # 사용할 데이터베이스 이름
+            user='pushingman',     # MySQL 사용자 이름
+            password='p###hoHO1357'  # MySQL 비밀번호
         )
-        return response
-    else:
+        if connection.is_connected():
+            print("MySQL 데이터베이스에 성공적으로 연결되었습니다.")
+            return connection
+    except Error as e:
+        print(f"Error: '{e}'")
         return None
 
-# 8. 일반 질문 응답 찾기 함수 정의
-def get_general_response(user_input):
-    # Zero-shot classification을 사용하여 의도 분류
-    result = classifier(user_input, candidate_labels)
-    
-    # 가장 높은 점수를 받은 레이블 추출
-    top_label = result['labels'][0]
-    score = result['scores'][0]
+# 책 제목의 일부 또는 전체로 검색
+def search_book(connection, title):
+    try:
+        cursor = connection.cursor(dictionary=True)
 
-    # 신뢰도 기준에 따라 응답 생성
-    if score > 0.04:
-        return responses.get(top_label, "죄송합니다, 해당 질문에 대한 답변을 찾을 수 없습니다.")
-    else:
-        return "죄송합니다, 이해하지 못했습니다."
+        # 입력한 제목과 완전히 일치하는 책이 있는지 확인
+        sql_query_full_match = "SELECT * FROM bookcase1 WHERE title = %s"
+        cursor.execute(sql_query_full_match, (title,))
+        full_match_result = cursor.fetchall()
 
-# 9. 챗봇 실행
-if __name__ == "__main__":
-    while True:
-        user_input = input("문장을 입력하세요 (종료하려면 '종료' 입력): ")
-        if user_input.lower() == "종료":
-            print("챗봇을 종료합니다.")
-            break
+        # 입력한 단어가 책 제목의 일부로 포함된 책 목록 조회
+        sql_query_partial_match = "SELECT * FROM bookcase1 WHERE title LIKE %s"
+        cursor.execute(sql_query_partial_match, ("%" + title + "%",))
+        partial_match_result = cursor.fetchall()
 
-        # 10. 책 정보 찾기 시도
-        book_response = get_book_info(user_input)
-        
-        if book_response:
-            # 책 정보가 있을 경우 출력
-            print(f"책 정보 응답:\n{book_response}")
+        # 입력한 제목과 완전히 일치하는 책이 있는 경우 해당 책 정보만 출력
+        if full_match_result:
+            print(f"'{title}' 제목의 책을 찾았습니다:")
+            for row in full_match_result:
+                print(f"제목: {row['title']}, 저자: {row['writer']}, 출판사: {row['publisher']}, 장르: {row['bookcaseSubject']}")
+        # 일치하는 제목이 없고, 입력한 단어가 포함된 책이 있는 경우 그 목록을 출력
+        elif partial_match_result:
+            print(f"'{title}' 단어가 포함된 책 목록:")
+            for row in partial_match_result:
+                print(f"제목: {row['title']}, 저자: {row['writer']}, 출판사: {row['publisher']}, 장르: {row['bookcaseSubject']}")
+        # 제목 일치도 없고, 단어가 포함된 책도 없는 경우
         else:
-            # 책 정보가 없을 경우 일반 질문 응답 시도
-            general_response = get_general_response(user_input)
-            print(f"일반 질문 응답:\n{general_response}")
+            print("해당 제목 또는 단어를 포함하는 책을 찾을 수 없습니다.")
+
+    except Error as e:
+        print(f"Error: '{e}'")
+
+# 메인 실행 함수
+if __name__ == "__main__":
+    # MySQL에 연결
+    connection = connect_to_db()
+
+    if connection:
+        while True:
+            # 사용자로부터 책 제목 입력 받기
+            title = input("검색할 책 제목 또는 단어를 입력하세요 ('exit,종료' 입력 시 종료): ")
+
+            # 'exit' 또는 'quit' 입력 시 프로그램 종료
+            if title.lower() in ['exit','종료']:
+                print("프로그램을 종료합니다.")
+                break
+
+            # 입력된 제목 또는 단어에 맞는 책 정보 검색
+            search_book(connection, title)
+
+        # MySQL 연결 종료
+        connection.close()
+        print("MySQL 연결이 종료되었습니다.")
