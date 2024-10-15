@@ -1,122 +1,167 @@
-from ultralytics import YOLO
 import cv2
-from paddleocr import PaddleOCR
+from ultralytics import YOLO
+import numpy as np
+import time
+from deep_sort_realtime.deepsort_tracker import DeepSort
+import os
 
-cv2.namedWindow('image')
-timer = 0
-before_person_detect_picture = None
-after_person_detect_picture = None
-orb = cv2.ORB_create()
+model = YOLO("yolov8l-seg.pt")
+tracker = DeepSort(max_age=50, n_init=1, nn_budget=100)
 
+previous_segmentations = []
+after_person_segmentations = []
+person_detected = False
+start_time_before = None
+start_time_after = None
+used_track_ids = set()
+previous_frame = None
+after_frame = None
+interval_before_person = 5
+interval_after_person = 5
+last_captured_time = 0
 
-def func_No_detectPerson(frame, check_person):
-    global before_person_detect_picture, after_person_detect_picture
-    if timer == 30:
-        if check_person == True:
-            after_person_detect_picture = frame
-            check_person = False
-            cal_differ_picture(before_person_detect_picture, after_person_detect_picture)
+def iou(mask1, mask2):
+    intersection = np.bitwise_and(mask1, mask2).sum()
+    union = np.bitwise_or(mask1, mask2).sum()
+    return intersection / union if union != 0 else 0
 
-        else:
-            before_person_detect_picture = frame
-            
-    return before_person_detect_picture, after_person_detect_picture
+def is_side_view_enhanced(box):
+    x1, y1, x2, y2 = box
+    width = x2 - x1
+    height = y2 - y1
+    aspect_ratio = height / width
+    area = width * height
+    return 1.5 < aspect_ratio < 8.0 and area < 50000
 
-    
-def cal_differ_picture(before_frame, after_frame):
-    
-    kp1, des1 = orb.detectAndCompute(before_frame, None)
-    kp2, des2 = orb.detectAndCompute(after_frame, None)
-    
-    
-    if des1 is None or des2 is None:
-        print("디스크립터를 추출하지 못했습니다.")
-        return
+def detect_person(frame):
+    results = model(frame)
+    for r in results:
+        for box in r.boxes.data:
+            class_id = int(box[5].item())
+            if class_id == 0:
+                return True
+    return False
 
-    if len(des1) < 2 or len(des2) < 2:
-        print("디스크립터가 충분하지 않습니다.")
-        return
-    bf = cv2.BFMatcher(cv2.NORM_HAMMING) 
-    matches = bf.knnMatch(des1, des2, k=2) 
-
-    good_matches = []
-    for m , n in matches:
-        if m.distance < 0.6 * n.distance:
-            good_matches.append(m)
-            
-    NG_kp1 = [kp1[m.queryIdx] for m,n in matches if m not in good_matches]
-    NG_kp2 = [kp2[m.queryIdx] for m,n in matches if m not in good_matches]
-    
-    differ_frame_before = cv2.drawKeypoints(before_frame, NG_kp1, None, color=(0, 0, 255))
-    differ_frame_after = cv2.drawKeypoints(after_frame, NG_kp2, None, color=(255, 0, 0))
-    
-    # differ_frame = cv2.drawMatches(before_frame, kp1, after_frame, kp2, good_matches, None)
-
-
-   
-    if(differ_frame_before is not None):
-        # cv2.resizeWindow(winname='differ_frame', width=200, height=200)
-        cv2.imshow("differ_frame_before", differ_frame_before)
-        cv2.waitKey()
-        cv2.imshow("differ_frame_after", differ_frame_after)
-        cv2.waitKey()        
-        # detect_ocr(differ_frame)
-
-def detect_ocr(frame):
-    frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
-    # cv2.resizeWindow(winname='differ_frame', width=200, height=200)
-    cv2.imshow("differ_frame", frame)
-    cv2.waitKey()
-    ocr_results = ocr_model.ocr(frame, cls = True)
-    if ocr_results is None or len(ocr_results) == 0 or ocr_results[0] is None or len(ocr_results[0]) == 0:
-        print("OCR failed: No text detected")
-        return ""
-    text_lines = [line[1][0] for line in sorted(ocr_results[0], key=lambda x: x[0][0][0])]
-    detected_text = ' '.join(text_lines)
-
-check_person = False
-check_cal = False 
-
-
-
-model = YOLO('yolov8s.pt')
-ocr_model = PaddleOCR(use_angle_cls=True, lang='korean', rec_model_dir='path/to/korean_server_v2.0_rec', use_gpu=True)
-
-capture = cv2.VideoCapture(0)
-capture.set(cv2.CAP_PROP_FRAME_WIDTH,640)
-capture.set(cv2.CAP_PROP_FRAME_HEIGHT,480)
-
-
+def track_books_with_segmentation(frame, check_confirmation=False, save_path="runs/segment/predict", before_person=True):
+    results = model(frame)
+    img_height, img_width = frame.shape[:2]
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+    masks = [r.masks.data for r in results if r.masks is not None]
+    boxes = [box for r in results for box in r.boxes.data]
+    detections = []
+    for box in boxes:
+        x1, y1, x2, y2 = box[:4]
+        if x1 < 1 and y1 < 1 and x2 < 1 and y2 < 1:
+            x1, x2 = x1 * img_width, x2 * img_width
+            y1, y2 = y1 * img_height, y2 * img_height
         
+        confidence = float(box[4].item())
+        class_id = int(box[5].item())
+        if class_id == 73 and confidence > 0.5 and is_side_view_enhanced((x1, y1, x2, y2)):
+            detections.append(([int(x1), int(y1), int(x2), int(y2)], confidence, 'book'))
+
+    tracks = tracker.update_tracks(detections, frame=frame)
+    segmentations = []
+    track_id_to_mask = {}
+
+    for track in tracks:
+        track_id = track.track_id
+        if not check_confirmation or (track.is_confirmed() and track.time_since_update == 0):
+            for mask in masks:
+                for single_mask in mask:
+                    segmentation_img = (single_mask.squeeze().cpu().numpy() > 0.5).astype(np.uint8)
+                    is_duplicate = False
+                    for prev_track_id, prev_mask in track_id_to_mask.items():
+                        if iou(segmentation_img, prev_mask) > 0.9:
+                            is_duplicate = True
+                            break
+
+                    if not is_duplicate:
+                        masked_frame = cv2.bitwise_and(frame, frame, mask=segmentation_img)
+                        if before_person:
+                            mask_save_path = os.path.join(save_path, f"before_person_masked_frame_{track_id}.png")
+                        else:
+                            mask_save_path = os.path.join(save_path, f"after_person_masked_frame_{track_id}.png")
+
+                        cv2.imwrite(mask_save_path, masked_frame)
+                        track_id_to_mask[track_id] = segmentation_img
+                        break
+                        
+    segmentations = [(track_id, mask) for track_id, mask in track_id_to_mask.items()]
+    return segmentations
+
+def compare_segmentations(before_segs, after_segs, save_path="runs/segment/predict"):
+    removed_segmentations = []
+    after_ids = {seg[0] for seg in after_segs}
+    for before_seg in before_segs:
+        track_id, seg_img = before_seg
+        if track_id not in after_ids:
+            mask_save_path = os.path.join(save_path, f"disappeared_object_{track_id}.png")
+            cv2.imwrite(mask_save_path, seg_img.astype('uint8') * 255)
+            removed_segmentations.append(before_seg)
+    return removed_segmentations
+
+cap = cv2.VideoCapture(1)
+w = 1280
+h = 720
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, w)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        break
     
+    current_time = time.time()
 
-
-
-
-ret, frame = capture.read()
-
-before_person_detect_picture = frame
-after_person_detect_picture = frame
-
-while frame is not None:
-    results = model.predict(frame)
-    for result in results:
-        person_detections = [d for d in result.boxes.data if int(d[5]) == 0]
-        timer+=1
-        if person_detections :
-            print("person_detect!")
-            check_person = True            
-            timer = 0
-        elif not person_detections:
-            before_person_detect_picture , after_person_detect_picture = func_No_detectPerson(frame,check_person)
-        
-        
-        # cv2.resizeWindow(winname='image', width=200, height=200)
-
-        cv2.imshow("image", frame)
-        cv2.waitKey(100)
-            
-        ret, frame = capture.read()
+    if person_detected:
+        interval = interval_after_person
+    else:
+        interval = interval_before_person
     
+    if current_time - last_captured_time >= interval:
+        is_person_detected = detect_person(frame)
     
+        if not person_detected and not is_person_detected:
+            start_time_before = time.time()
+            previous_frame = frame.copy()
+            segs = track_books_with_segmentation(previous_frame, before_person=True)
+            previous_segmentations = segs
+            print(f"Saved {len(segs)} new segmentations before person appeared")
 
+        elif is_person_detected and not person_detected:
+            person_detected = True
+            start_time_before = None
+            start_time_after = None
+            print("Person detected")    
+
+        elif not is_person_detected and person_detected:
+            if start_time_after is None:
+                start_time_after = time.time()
+
+            if time.time() - start_time_after >= interval_after_person:
+                after_frame = frame.copy()
+                segs = track_books_with_segmentation(after_frame, before_person=False)
+                after_person_segmentations = segs
+                
+                removed_segmentations = compare_segmentations(previous_segmentations, after_person_segmentations)
+                if removed_segmentations:
+                    for track_id, removed_seg in removed_segmentations:
+                        cv2.imshow(f"Removed Object ID {track_id}", removed_seg.astype('uint8') * 255)
+                        cv2.waitKey(100)
+                        print(f"사라진 객체 ID {track_id}가 감지되었습니다.")
+                
+                person_detected = False
+                previous_segmentations = after_person_segmentations.copy()
+                after_person_segmentations.clear()
+                start_time_after = None
+                print("Object status reset")
+                
+        last_captured_time = current_time
+
+    cv2.imshow('main frame', frame)
+    if cv2.waitKey(10) & 0xFF == ord('q'):
+        break
+
+cap.release()
+cv2.destroyAllWindows()
