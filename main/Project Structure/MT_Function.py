@@ -10,7 +10,7 @@ class MT_Function(threading.Thread):
         self._name = name
         self.running = True
         self.main_function_que = queue.Queue()
-
+        
     def receive_message(self, message, sender, data=None):
         self.main_function_que.put((message,sender))
 
