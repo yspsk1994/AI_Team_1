@@ -1,4 +1,6 @@
 from operator import truediv
+from pickle import TRUE
+from tkinter.tix import Tree
 from ConcreteMediator import ConcreteMediator
 import threading
 import queue
@@ -8,47 +10,61 @@ import Cam
 
 
 class MT_Cam(threading.Thread) :
-    def __init__(self, mediator, name, shared_queue):
+    def __init__(self, mediator, name):
         super().__init__()
         self._mediator = mediator
         self.name = name
         self.running = True
-        self.mt_cam_event_que = queue.Queue()
-        self.mt_cam1_que = queue.Queue()
-        self.mt_cam2_que = queue.Queue()
-        
-        self.cam1 = Cam.Cam1()
-        self.cam2 = Cam.Cam2()
-        self.cam1_msg = Cam.Cam1_Msg(shared_queue)
-        self.cam2_msg = Cam.Cam2_Msg(shared_queue)
-        self.cam_shared_queue = shared_queue
-        
-        self.cam1.start()
-        self.cam2.start()
-        self.cam1_msg.start()
-        self.cam2_msg.start()
-        
-        
-    def receive_message(self, message, sender, data=None):
-        self.mt_cam_event_que.put((message,sender))
 
-    def send_message(self, target, message, data=None):
-        self._mediator.send_message(target, message, self, data)
+        self.mt_cam_event_que = queue.Queue()
+        
+        self.cam1_thread = Cam.Cam1_Thread()
+        self.cam2_thread = Cam.Cam2_Thread()
+
+        self.cam1_thread.start()
+        self.cam2_thread.start()
+        
+        
+    def receive_message(self, target, final_target, message, sender, data=None):
+        self.mt_cam_event_que.put((target, final_target, message, sender, data))
+
+    def send_message(self, target, final_target, message, sender, data=None):
+        self._mediator.send_message(target, final_target, message, sender, data)
 
 
     def run(self):
         while self.running:
             if not self.mt_cam_event_que.empty():
-                message , sender = self.mt_cam_event_que.get()
+                target, final_target, message, sender, data = self.mt_cam_event_que.get()
+                
+                if final_target == 'CAM_1':
+                    if message == 'START_GRABBING':
+                        self.cam1_thread.Is_Start_Grabbing = True
+                        self.cam1_thread.cam1_receive_que.put((message,sender))                       
+                    elif message == 'STOP_GRABBING':
+                        self.cam1_thread.Is_Start_Grabbing = False
 
-                if message == 'Cam1':
-                    self.cam_shared_queue.put((message,sender))
-                elif message == 'Cam2':
-                    self.cam_shared_queue.put((message,sender))
+
+                elif final_target == 'CAM_2':
+                    if message == 'START_GRABBING':
+                        self.cam2_thread.Is_Start_Grabbing = True
+                        self.cam2_thread.cam2_receive_que.put((message,sender))                       
+                    elif message == 'STOP_GRABBING':
+                        self.cam2_thread.Is_Start_Grabbing = False
+
+
+            if not self.cam1_thread.cam1_send_que.empty():
+                target, final_target, message, sender, data = self.cam1_thread.cam1_send_que.get()
+                self.send_message(target,final_target,message,sender,data)
+
+            if not self.cam2_thread.cam2_send_que.empty():
+                target, final_target, message, sender, data = self.cam2_thread.cam2_send_que.get()
+                self.send_message(target,final_target,message,sender,data)
+                return
+
 
     def stop(self):
         self.running = False
 
-import shared
 
-shared.mt_cam_instance = MT_Cam(mediator="mediator_instance", name="MT_Cam_1")
+
