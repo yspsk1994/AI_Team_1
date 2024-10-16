@@ -2,7 +2,7 @@ from ultralytics import YOLO
 from paddleocr import PaddleOCR
 import cv2
 
-def initialize_yolo(model_path='../../model/yolo/yolov8x-seg.pt'):
+def initialize_yolo(model_path='model/yolo/yolo_trainv2.pt'):
     """YOLO 모델 초기화"""
     return YOLO(model_path)
 
