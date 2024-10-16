@@ -34,34 +34,38 @@ class MT_Cam(threading.Thread) :
 
     def run(self):
         while self.running:
-            if not self.mt_cam_event_que.empty():
-                target, final_target, message, sender, data = self.mt_cam_event_que.get()
-                
+            try:
+                target, final_target, message, sender, data = self.mt_cam_event_que.get(timeout=1)
                 if final_target == 'CAM_1':
                     if message == 'START_GRABBING':
                         self.cam1_thread.Is_Start_Grabbing = True
-                        self.cam1_thread.cam1_receive_que.put((message,sender))                       
+                        self.cam1_thread.cam1_receive_que.put((message, sender))                       
                     elif message == 'STOP_GRABBING':
                         self.cam1_thread.Is_Start_Grabbing = False
-
 
                 elif final_target == 'CAM_2':
                     if message == 'START_GRABBING':
                         self.cam2_thread.Is_Start_Grabbing = True
-                        self.cam2_thread.cam2_receive_que.put((message,sender))                       
+                        self.cam2_thread.cam2_receive_que.put((message, sender))                       
                     elif message == 'STOP_GRABBING':
                         self.cam2_thread.Is_Start_Grabbing = False
 
+            except queue.Empty:
+                pass 
 
-            if not self.cam1_thread.cam1_send_que.empty():
-                target, final_target, message, sender, data = self.cam1_thread.cam1_send_que.get()
-                self.send_message(target,final_target,message,sender,data)
+ 
+            try:
+                target, final_target, message, sender, data = self.cam1_thread.cam1_send_que.get(timeout=1)
+                self.send_message(target, final_target, message, sender, data)
+            except queue.Empty:
+                pass 
 
-            if not self.cam2_thread.cam2_send_que.empty():
-                target, final_target, message, sender, data = self.cam2_thread.cam2_send_que.get()
-                self.send_message(target,final_target,message,sender,data)
-                return
-
+            
+            try:
+                target, final_target, message, sender, data = self.cam2_thread.cam2_send_que.get(timeout=1)
+                self.send_message(target, final_target, message, sender, data)
+            except queue.Empty:
+                pass  
 
     def stop(self):
         self.running = False
