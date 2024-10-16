@@ -1,7 +1,6 @@
 from ConcreteMediator import ConcreteMediator
 import threading
 import queue
-from Function import Checking_Book_Status
 
 class MT_Function(threading.Thread):
 
@@ -11,9 +10,6 @@ class MT_Function(threading.Thread):
         self._name = name
         self.running = True
         self.main_function_que = queue.Queue()
-
-        self.func1_thread = Checking_Book_Status.BookStatus_Thread()
-        self.func1_thread.start()
         
     def receive_message(self, target, final_target, message, sender, data=None):
         self.main_function_que.put((target, final_target, message,sender, data))
@@ -25,10 +21,9 @@ class MT_Function(threading.Thread):
     def run(self):
         while self.running:
             if not self.main_function_que.empty() :
-                target, final_target, message, sender, data = self.main_function_que.get()
-                if final_target == 'FUNC1':
-                    self.func1_thread.bookstatus_receive_que.put(data)
-                    self.func1_thread.running = True
+                message, sender = self.main_function_que.get()
+                if message == 'function1':
+                    return
                 elif message == 'function2':
                     return
                 elif message == 'function2':

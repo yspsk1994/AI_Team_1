@@ -7,7 +7,7 @@ import sys
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QTimer
 import queue
-from MT_DB import MT_DB
+
 IsCorrect_ID = False
 
 class SmartLibrary:
@@ -25,33 +25,33 @@ def check_login():
     global IsCorrect_ID
     if IsCorrect_ID:
         timer.stop()  
-        login_window.close()
         open_main_window()
 
 def open_main_window():
     global window
-    # mt_cam_thread = MT_Cam(mediator, "MT_CAM")
+    mt_cam_thread = MT_Cam(mediator, "MT_CAM")
     mt_function_thread = MT_Function(mediator, "MT_FUNCTION")
 
-    window = MyWindow(None) 
+    window = MyWindow(None)
     window.show()
 
-    mt_ui_thread = MT_UI(mediator, "MT_UI")
+    widget_cam1 = window.widget_cam1
+    widget_cam2 = window.widget_cam2
+    widget_cam1_thread = window.widget_cam1_thread
+    widget_cam2_thread = window.widget_cam2_thread
+
+    mt_ui_thread = MT_UI(mediator, "MT_UI", widget_cam1, widget_cam2, widget_cam1_thread, widget_cam2_thread)
+
     window.mt_ui = mt_ui_thread
 
-    mt_db_thread = MT_DB(mediator, "MT_DB")
-
-
-    # mediator.add_user(mt_cam_thread)
+    mediator.add_user(mt_cam_thread)
     mediator.add_user(mt_function_thread)
     mediator.add_user(mt_ui_thread)
-    mediator.add_user(mt_db_thread)
-    
-    # mt_cam_thread.start()
+
+    mt_cam_thread.start()
     mt_function_thread.start()
     mt_ui_thread.start()
-    mt_db_thread.start()
-    
+
 mediator = ConcreteMediator()
 shared_queue = queue.Queue()
 app = QApplication(sys.argv)

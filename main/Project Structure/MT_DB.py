@@ -1,22 +1,18 @@
 from ConcreteMediator import ConcreteMediator
 import threading
 import queue
-from Function import Checking_Book_Status
 
-class MT_Function(threading.Thread):
+class MT_DB(threading.Thread):
 
     def __init__(self, mediator, name):
         super().__init__()
         self._mediator = mediator
         self._name = name
         self.running = True
-        self.main_function_que = queue.Queue()
-
-        self.func1_thread = Checking_Book_Status.BookStatus_Thread()
-        self.func1_thread.start()
+        self.main_db_que = queue.Queue()
         
     def receive_message(self, target, final_target, message, sender, data=None):
-        self.main_function_que.put((target, final_target, message,sender, data))
+        self.main_db_que.put((target, final_target, message,sender, data))
 
     def send_message(self, target, final_target, message, sender, data=None):
         self._mediator.send_message(target, final_target, message, sender, data)
@@ -24,11 +20,10 @@ class MT_Function(threading.Thread):
     
     def run(self):
         while self.running:
-            if not self.main_function_que.empty() :
-                target, final_target, message, sender, data = self.main_function_que.get()
-                if final_target == 'FUNC1':
-                    self.func1_thread.bookstatus_receive_que.put(data)
-                    self.func1_thread.running = True
+            if not self.main_db_que.empty() :
+                message, sender = self.main_db_que.get()
+                if message == 'function1':
+                    return
                 elif message == 'function2':
                     return
                 elif message == 'function2':
@@ -38,4 +33,4 @@ class MT_Function(threading.Thread):
                 
 
     def stop(self):
-        self.main_function_que._stop()
+        self.main_db_que._stop()
