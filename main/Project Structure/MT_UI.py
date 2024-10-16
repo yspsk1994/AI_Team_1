@@ -3,7 +3,7 @@ from ConcreteMediator import ConcreteMediator
 import threading
 import queue
 import UI
-
+import cv2
 ## Mediator event que thread
 class MT_UI(threading.Thread) :
     def __init__(self, mediator, name, widget_cam1, widget_cam2, widget_cam1_thread, widget_cam2_thread):
@@ -34,7 +34,8 @@ class MT_UI(threading.Thread) :
 
                 if final_target == 'WIDGET_CAM_1':
                     self.widget_cam1_thread.widget_cam1_que.put(data)
-                elif message == 'WIDGET_CAM_2':
+                    
+                elif final_target == 'WIDGET_CAM_2':
                     self.widget_cam2_thread.widget_cam2_que.put(data)
 
     def stop(self):
