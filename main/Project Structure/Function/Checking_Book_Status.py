@@ -326,7 +326,7 @@ class BookStatus:
             os.makedirs(CROPPED_FOLDER, exist_ok=True)
 
             book_list, book_df = self.load_book_list(EXCEL_PATH)
-            cap = self.initialize_webcam()
+            # cap = self.initialize_webcam()
 
             last_process_time = time.time()
             previous_books = []
@@ -372,7 +372,7 @@ class BookStatus:
                 last_process_time = current_time
 
 
-            cap.release()
+            # cap.release()
             cv2.destroyAllWindows()
 
         except Exception as e:

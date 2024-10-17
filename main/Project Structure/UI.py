@@ -89,7 +89,7 @@ class MyWindow(QMainWindow):
             print("Live mode OFF, 메시지 전송")
 
     def Checking_BookStatus_Mode(self, checked):
-        self.dialog = BookStatus_Window(self.mt_ui)  # 새 창 생성
+        self.dialog = BookStatus_Window(self.mt_ui, self.widget_cam1_thread)  # 기존 스레드를 전달합니다.
         self.dialog.exec()
 
 
@@ -101,23 +101,21 @@ class Widget_Cam1_Thread(threading.Thread):
         self.widget_cam1_que = queue.Queue(maxsize=10)
         self.widget_cam1 = widget_cam1
         self.frame = None
+        self.cap = cv2.VideoCapture(0)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+        
     def run(self):
         while(self.running):
-            ret, frame = self.widget_cam1.cap.read()
+            ret, frame = self.cap.read()
             if ret:
-                self.frmae = frame
+                self.frame = frame
                 self.widget_cam1.update_frame(frame)
     def stop(self):
         self.running = False
     
     def Get_Frame(self):
-            # 여기에 self.widget_cam1.cap에서 프레임을 직접 가져오는 코드 추가
-            ret, frame = self.widget_cam1.cap.read()
-            if ret:
-                return frame
-            else:
-                print("프레임을 가져오지 못했습니다.")
-                return None
+            return self.frame  
               
 class Widget_Cam2_Thread(threading.Thread):
     def __init__(self,widget_cam2):
@@ -125,10 +123,13 @@ class Widget_Cam2_Thread(threading.Thread):
         self.running = True
         self.widget_cam2_que = queue.Queue(maxsize=10)
         self.widget_cam2 = widget_cam2
-
+        self.cap = cv2.VideoCapture(1)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+        
     def run(self):
         while(self.running):
-            ret, frame = self.widget_cam2.cap.read()
+            ret, frame = self.cap.read()
             if ret:
                 self.widget_cam2.update_frame(frame)   
 
@@ -139,10 +140,7 @@ class Widget_Cam1(QLabel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.resize(200, 100)
-        self.cap = cv2.VideoCapture(0)
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-        
+
     def update_frame(self, frame):
         widget_width = self.width()
         widget_height = self.height()
@@ -157,9 +155,7 @@ class Widget_Cam2(QLabel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.resize(200, 100)
-        self.cap = cv2.VideoCapture(2)
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+
         
     def update_frame(self, frame):
         widget_width = self.width()
@@ -173,12 +169,11 @@ class Widget_Cam2(QLabel):
         self.setPixmap(pixmap)
 
 class BookStatus_Window(QDialog):
-    def __init__(self,mt_ui):
+    def __init__(self, mt_ui, widget_cam1_thread):
         super().__init__()
         self.setWindowTitle("책 상태 검사")
         self.setGeometry(300, 300, 1000, 600)  # 창의 크기 설정
-        self.widget_cam1 = Widget_Cam1()
-        self.widget_cam1_thread = Widget_Cam1_Thread(self.widget_cam1)
+        self.widget_cam1_thread = widget_cam1_thread  # 기존 스레드를 사용합니다.
         self.mt_ui = mt_ui  
   
         # UI 요소 추가
@@ -186,13 +181,13 @@ class BookStatus_Window(QDialog):
         self.btn_Checking_BookStatus.setCheckable(True)
         self.btn_Checking_BookStatus.resize(300, 100)
         self.btn_Checking_BookStatus.move(300,200)
-        self.btn_Checking_BookStatus.clicked[bool].connect(self.check_evnet)
+        self.btn_Checking_BookStatus.clicked[bool].connect(self.check_event)  
                 
         self.btn_close = QPushButton("닫기", self)
         self.btn_close.move(150, 200)
         self.btn_close.clicked.connect(self.close)  # 닫기 버튼 클
 
-    def check_evnet(self, checked):
+    def check_event(self, checked):
         if checked:
             frame = self.widget_cam1_thread.Get_Frame()
             self.mt_ui.send_message("MT_FUNCTION", "FUNC1", "START_PROCESS", "BOOK_STATUS_BTN", frame)
