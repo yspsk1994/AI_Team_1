@@ -1,0 +1,53 @@
+import threading
+import queue
+import cv2
+# import shared
+import time
+from multiprocessing import shared_memory
+ 
+class Cam1_Thread(threading.Thread):
+    def __init__(self):
+        super().__init__()
+        self.running = True
+        # self.cap = cv2.VideoCapture(5)
+        # self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        # self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        # self.cap.set(cv2.CAP_PROP_POS_FRAMES, 100)
+
+        self.cam1_receive_que = queue.Queue()
+        self.cam1_send_que = queue.Queue()
+        self.Is_Start_Grabbing = False
+        
+    def run(self):
+        while self.running:
+               if self.Is_Start_Grabbing :
+                ret, frame = self.cap.read()
+                if ret:
+                    self.cam1_send_que.put(("MT_UI","WIDGET_CAM_1","GET_FRAME","CAM_1",frame))
+          
+    def stop(self):
+        self.running = False
+    
+
+
+class Cam2_Thread(threading.Thread):
+    def __init__(self):
+        super().__init__()
+        self.running = True
+        self.cap = cv2.VideoCapture(0)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        self.cap.set(cv2.CAP_PROP_POS_FRAMES, 30)
+        self.Is_Start_Grabbing = False
+        self.cam2_receive_que = queue.Queue()
+        self.cam2_send_que = queue.Queue()
+        
+    def run(self):
+        while self.running:
+            if self.Is_Start_Grabbing :
+               ret, frame = self.cap.read()
+               if ret:
+                    self.cam2_send_que.put(("MT_UI","WIDGET_CAM_2","GET_FRAME","CAM_2",frame))
+          
+    def stop(self):
+        self.running = False
