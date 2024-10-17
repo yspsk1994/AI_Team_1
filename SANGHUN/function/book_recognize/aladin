@@ -1,0 +1,72 @@
+# def search_book_on_aladin(query, ttb_key):
+#     url = "http://www.aladin.co.kr/ttb/api/ItemSearch.aspx"
+#     params = {
+#         "TTBKey": ttb_key,
+#         "Query": query,
+#         "QueryType": "Keyword",
+#         "MaxResults": 10,
+#         "start": 1,
+#         "SearchTarget": "Book",
+#         "output": "xml",
+#         "Version": "20131101"
+#     }
+    
+#     response = requests.get(url, params=params)
+    
+#     if response.status_code == 200:
+#         result = xmltodict.parse(response.content)
+#         items = result['object'].get('item', [])
+#         if isinstance(items, dict):
+#             items = [items]
+#         return items if items else None
+#     else:
+#         print(f"Error: {response.status_code}")
+#         return None
+
+# def calculate_relevance_score(book_title, search_term):
+#     if search_term.lower() in book_title.lower():
+#         return len(search_term)
+#     return 0
+
+# def find_best_book_match(extracted_text, ttb_key):
+#     lines = extracted_text.splitlines()
+#     best_book = None
+#     best_score = 0
+    
+#     for line in lines:
+#         if not line:
+#             continue
+#         print(f"검색 중: {line}")
+#         book_info = search_book_on_aladin(line.strip(), ttb_key)
+        
+#         if book_info:
+#             for book in book_info:
+#                 score = calculate_relevance_score(book.get('title', ''), line)
+#                 if score > best_score:
+#                     best_score = score
+#                     best_book = book
+    
+#     return best_book
+
+# def print_book_info(book):
+#     if book:
+#         print("\n가장 일치하는 도서 정보:")
+#         print(f"제목: {book.get('title', '정보 없음')}")
+#         print(f"저자: {book.get('author', '정보 없음')}")
+#         print(f"출판사: {book.get('publisher', '정보 없음')}")
+#         print(f"출판일: {book.get('pubDate', '정보 없음')}")
+#         print(f"링크: {book.get('link', '정보 없음')}")
+#     else:
+#         print("알라딘 API에서 적합한 도서를 찾지 못했습니다.")
+
+# def process_cropped_image(ocr, cropped_filename, ttb_key):
+#     extracted_text = extract_text_from_image(ocr, cropped_filename)
+    
+#     if extracted_text:
+#         extracted_text = re.sub(r'[^-!~\w\s]', '\n', extracted_text)
+#         print(f"\n추출된 텍스트: {extracted_text}")   
+        
+#         # best_book = find_best_book_match(extracted_text, ttb_key)
+#         # print_book_info(best_book)
+#     else:
+#         print("이미지에서 텍스트를 감지하지 못했습니다.")
