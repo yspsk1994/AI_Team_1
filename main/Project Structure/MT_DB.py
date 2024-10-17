@@ -1,7 +1,6 @@
 from ConcreteMediator import ConcreteMediator
 import threading
 import queue
-
 class MT_DB(threading.Thread):
 
     def __init__(self, mediator, name):
@@ -20,7 +19,8 @@ class MT_DB(threading.Thread):
     
     def run(self):
         while self.running:
-            if not self.main_db_que.empty() :
+            try:
+                print("MT_DB_THREAD")
                 message, sender = self.main_db_que.get()
                 if message == 'function1':
                     return
@@ -30,7 +30,7 @@ class MT_DB(threading.Thread):
                     return
                 elif message == 'function3':
                     return
-                
-
+            except queue.Empty:
+                continue
     def stop(self):
         self.main_db_que._stop()

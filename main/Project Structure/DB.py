@@ -12,19 +12,27 @@ import xlwt
 class DB_Thread(threading.Thread):
     def __init__(self):
         super().__init__()
-        self.running = True
-
+        self.running = False  # 쓰레드 실행 여부를 제어하는 플래그
         self.db_receive_que = queue.Queue()
         self.db_send_que = queue.Queue()
         self.Is_Start_Grabbing = False
-        
+
     def run(self):
+        self.running = True 
         while self.running:
-               if self.Is_Start_Grabbing :
-                    return
-          
+            try:
+                print("DB_Thread running")
+                if self.Is_Start_Grabbing:
+                    print("Grabbing process started")
+                    return  
+                time.sleep(1) 
+            except Exception as e:
+                print(f"An error occurred in DB_Thread: {e}")
+                self.running = False 
+
     def stop(self):
-        self.running = False
+        print("Stopping DB_Thread")
+        self.running = False  
 
 
 

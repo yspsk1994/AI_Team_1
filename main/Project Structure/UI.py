@@ -8,15 +8,18 @@ import cv2
 import queue
 from ConcreteMediator import ConcreteMediator
 import time
+from PyQt6.QtCore import pyqtSignal
+            
 
 frame_que = queue.Queue()
 
 class MyWindow(QMainWindow):
     def __init__(self, mt_ui):
+        
         super().__init__()
         self.mt_ui = mt_ui
         self.Init_Main()
-        self.Init_Widget()  # 먼저 위젯을 초기화해야 함
+        self.Init_Widget()
         self.Init_btn()
         self.Init_Sub_Instance()
         self.Init_UI()
@@ -56,11 +59,20 @@ class MyWindow(QMainWindow):
                 self.tableWIdget_checkout.setItem(i, j, QTableWidgetItem(f"Item {i+1}-{j+1}"))        
 
     def Init_Sub_Instance(self):
-        # widget_cam1과 widget_cam2가 초기화된 후에 thread 생성
         self.widget_cam1_thread = Widget_Cam1_Thread(self.widget_cam1)
-        self.widget_cam2_thread = Widget_Cam2_Thread(self.widget_cam2)
+        self.widget_cam1_thread.frame_received.connect(self.widget_cam1.update_frame)  # 프레임 신호 연결
         self.widget_cam1_thread.start()
+
+        self.widget_cam2_thread = Widget_Cam2_Thread(self.widget_cam2)
+        self.widget_cam2_thread.frame_received.connect(self.widget_cam2.update_frame)  # 프레임 신호 연결
         self.widget_cam2_thread.start()
+
+        if self.mt_ui is not None:  # None 체크
+            self.mt_ui.set_widget_threads(self.widget_cam1_thread, self.widget_cam2_thread)
+         
+        else:
+            print("Error: mt_ui is None!")
+
 
     def Init_btn(self):
         # 버튼 초기화
@@ -82,10 +94,10 @@ class MyWindow(QMainWindow):
 
     def toggleLiveMode(self, checked):
         if checked:
-            self.mt_ui.send_message("MT_CAM", "CAM_2", "START_GRABBING", "WIDGET_CAM_2", None)
+            self.mt_ui.send_message("MT_CAM", "CAM_1", "START_GRABBING", "WIDGET_CAM_1", None)
             print("Live mode ON, 메시지 전송")
         else:
-            self.mt_ui.send_message("MT_CAM", "CAM_2", "STOP_GRABBING", "WIDGET_CAM_2", None)
+            self.mt_ui.send_message("MT_CAM", "CAM_1", "STOP_GRABBING", "WIDGET_CAM_1", None)
             print("Live mode OFF, 메시지 전송")
 
     def Checking_BookStatus_Mode(self, checked):
@@ -93,48 +105,81 @@ class MyWindow(QMainWindow):
         self.dialog.exec()
 
 
-            
-class Widget_Cam1_Thread(threading.Thread):
-    def __init__(self,widget_cam1):
+
+class Widget_Cam1_Thread(QThread):
+    frame_received = pyqtSignal(object)  # 신호 선언
+
+    def __init__(self, widget_cam1):
         super().__init__()
         self.running = True
-        self.widget_cam1_que = queue.Queue(maxsize=10)
         self.widget_cam1 = widget_cam1
-        self.frame = None
-        self.cap = cv2.VideoCapture(0)
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-        
+        self.widget_cam1_que = queue.Queue(maxsize=10)  # 큐 크기를 늘림
+
     def run(self):
-        while(self.running):
-            ret, frame = self.cap.read()
-            if ret:
-                self.frame = frame
-                self.widget_cam1.update_frame(frame)
-    def stop(self):
-        self.running = False
-    
-    def Get_Frame(self):
-            return self.frame  
-              
-class Widget_Cam2_Thread(threading.Thread):
-    def __init__(self,widget_cam2):
-        super().__init__()
-        self.running = True
-        self.widget_cam2_que = queue.Queue(maxsize=10)
-        self.widget_cam2 = widget_cam2
-        self.cap = cv2.VideoCapture(1)
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-        
-    def run(self):
-        while(self.running):
-            ret, frame = self.cap.read()
-            if ret:
-                self.widget_cam2.update_frame(frame)   
+        while self.running:
+            try:
+                # 큐에서 프레임 가져오기
+                frame = self.widget_cam1_que.get(timeout=1)
+                if frame is not None:
+                    print('get frame widget1:', frame.shape)  # 프레임 로그 추가
+                    # 프레임을 수신하면 update_frame 신호를 발생시킴
+                    self.frame_received.emit(frame)
+                    self.widget_cam1.update_frame(frame)
+            except queue.Empty:
+                print("Queue is empty, retrying...")  # 큐가 비었을 때의 로그
+                continue
+            except Exception as e:
+                print(f"Error in Widget_Cam1_Thread: {e}")  # 예외 처리
+
+    def put_frame(self, frame):
+        """외부에서 프레임을 큐에 넣기 위한 메서드"""
+        if not self.widget_cam1_que.full():
+            self.widget_cam1_que.put(frame)
+            print('put frame into widget1:', frame.shape)  # 로그 추가
+        else:
+            print("Queue is full")
+
 
     def stop(self):
         self.running = False
+
+
+class Widget_Cam2_Thread(QThread):
+    frame_received = pyqtSignal(object)  # 신호 선언
+
+    def __init__(self, widget_cam2):
+        super().__init__()
+        self.running = True
+        self.widget_cam2 = widget_cam2
+        self.widget_cam2_que = queue.Queue(maxsize=5)  # 큐 크기를 제한
+
+    def run(self):
+        while self.running:
+            try:
+                print("Widget_Cam2_Thread")
+                # 큐에서 프레임 가져오기 (오래된 프레임은 자동으로 제거)
+                frame = self.widget_cam2_que.get(timeout=1)
+                print('get frame widget2')
+                if frame is not None:
+                    print('get frame widget2:', frame.shape)  # 프레임 로그 추가
+                    self.frame_received.emit(frame)  # 프레임 수신 시 신호 발생
+                    time.sleep(0.01)
+            except queue.Empty:
+                time.sleep(0.1)
+                continue
+
+    def put_frame(self, frame):
+        """외부에서 프레임을 큐에 넣기 위한 메서드"""
+        if not self.widget_cam1_que.full():
+            self.widget_cam1_que.put(frame)
+            print('put frame into widget2:', frame.shape)  # 로그 추가
+        else:
+            print("Queue is full")
+
+
+    def stop(self):
+        self.running = False
+
 
 class Widget_Cam1(QLabel):
     def __init__(self, parent=None):
@@ -142,6 +187,7 @@ class Widget_Cam1(QLabel):
         self.resize(200, 100)
 
     def update_frame(self, frame):
+        print("Widget_Cam1_update")
         widget_width = self.width()
         widget_height = self.height()
         frame = cv2.resize(frame,(widget_width, widget_height))
@@ -189,8 +235,8 @@ class BookStatus_Window(QDialog):
 
     def check_event(self, checked):
         if checked:
-            frame = self.widget_cam1_thread.Get_Frame()
-            self.mt_ui.send_message("MT_FUNCTION", "FUNC1", "START_PROCESS", "BOOK_STATUS_BTN", frame)
+            # frame = self.widget_cam1_thread.Get_Frame()
+            self.mt_ui.send_message("MT_FUNCTION", "FUNC1", "START_GRABBING", "BOOK_STATUS_BTN", None)
             print("Checking book status 메세지 전송")
         else:
             print("Checking book status 메세지 실패")
