@@ -1,0 +1,14 @@
+<RCC>
+  <qresource prefix="Title">
+    <file>Title.png</file>
+  </qresource>
+  <qresource prefix="suggestion">
+    <file>Suggestions2.png</file>
+  </qresource>
+  <qresource prefix="background">
+    <file>background.jpg</file>
+  </qresource>
+  <qresource prefix="Logo">
+    <file>Logo.png</file>
+  </qresource>
+</RCC>

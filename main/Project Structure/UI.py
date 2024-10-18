@@ -1,295 +1,239 @@
-import sys
-from tkinter import Widget
-from PyQt6 import QtWidgets, QtGui
-from PyQt6.QtWidgets import *
-import threading
-from PyQt6.QtCore import QThread
+from PyQt6 import QtCore, QtGui, QtWidgets
 import cv2
+import threading
 import queue
-from ConcreteMediator import ConcreteMediator
-import time
-from PyQt6.QtCore import pyqtSignal
-            
 
-frame_que = queue.Queue()
-
-class MyWindow(QMainWindow):
-    def __init__(self, mt_ui):
-        
+class Ui_MainWindow(QtWidgets.QMainWindow):
+    def __init__(self, mt_ui_thread):
         super().__init__()
-        self.mt_ui = mt_ui
-        self.Init_Main()
-        self.Init_Widget()
-        self.Init_btn()
-        self.Init_Sub_Instance()
-        self.Init_UI()
+        self.mt_ui_thread = mt_ui_thread
+        self.cam1_queue = self.mt_ui_thread.cam1_queue
+        self.cam2_queue = self.mt_ui_thread.cam2_queue
+        self.data_queue = self.mt_ui_thread.data_queue
+        self.setupUi(self)
+        self.start_threads()
 
-    def closeEvent(self, event):
-        reply = QMessageBox.question(self, 'Close', 
-                                    'Are you sure you want to close the window?', 
-                                    QMessageBox.Yes | QMessageBox.No, 
-                                    QMessageBox.No)
-        if reply == QMessageBox.Yes:
-            event.accept() 
-        else:
-            event.ignore()
+    def setupUi(self, MainWindow):
+        MainWindow.setObjectName("MainWindow")
+        MainWindow.resize(1871, 1092)
+        MainWindow.setStyleSheet("QMainWindow {\n"
+                                 "    background-image: url(\"./Background.jpg\");\n"
+                                 "    background-repeat: no-repeat;\n"
+                                 "    background-position: center;\n"
+                                 "}")
 
-    def Init_Main(self):
-        self.setWindowTitle("도서 관리 프로그램")
-        monitor_size = self.screen().availableGeometry()
-        self.setGeometry(monitor_size.x(), monitor_size.y(), monitor_size.width(), monitor_size.height())
+        self.centralwidget = QtWidgets.QWidget(parent=MainWindow)
+        self.centralwidget.setObjectName("centralwidget")
 
-    def Init_Widget(self):
-        # widget_cam1과 widget_cam2를 초기화
-        self.widget_cam1 = Widget_Cam1(self)
-        self.widget_cam2 = Widget_Cam2(self)
-        self.tableWIdget_checkout = QTableWidget(self)
-        self.tableWIdget_checkout.setRowCount(20)
-        self.tableWIdget_checkout.setColumnCount(5)
-        self.tableWIdget_checkout.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.tableWIdget_checkout.setHorizontalHeaderLabels(["제목", "저자", "출판사", "ISBN", "도서상태"])
+        self.label = QtWidgets.QLabel(parent=self.centralwidget)
+        self.label.setGeometry(QtCore.QRect(10, 0, 271, 101))
+        self.label.setText("")
+        self.label.setPixmap(QtGui.QPixmap("./Logo.png"))
+        self.label.setScaledContents(True)
+        self.label.setObjectName("label")
 
-        self.tableWIdget_checkout.move(50, 50)  # x, y 좌표
-        self.tableWIdget_checkout.resize(500, 600)  # width, height
+        self.Title = QtWidgets.QLabel(parent=self.centralwidget)
+        self.Title.setGeometry(QtCore.QRect(270, 0, 1281, 101))
+        self.Title.setSizeIncrement(QtCore.QSize(1, 0))
+        self.Title.setStyleSheet("QMainWindow {\n"
+                                 "    background-image: url(\"Background.jpg\");\n"
+                                 "    background-repeat: no-repeat;\n"
+                                 "    background-position: center;\n"
+                                 "    background-size: cover;\n"
+                                 "}")
+        self.Title.setObjectName("Title")
 
+        self.Time = QtWidgets.QDateTimeEdit(parent=self.centralwidget)
+        self.Time.setGeometry(QtCore.QRect(1630, 30, 221, 41))
+        font = QtGui.QFont()
+        font.setPointSize(15)
+        self.Time.setFont(font)
+        self.Time.setStyleSheet("QDateTimeEdit::up-button {\n"
+                                "    width: 0;\n"
+                                "    height: 0;\n"
+                                "}\n"
+                                "QDateTimeEdit::down-button {\n"
+                                "    width: 0;\n"
+                                "    height: 0;\n"
+                                "}\n"
+                                "QDateTimeEdit {\n"
+                                "    background-color: transparent;\n"
+                                "    border: none;\n"
+                                "}")
+        self.Time.setDisplayFormat("yyyy/MM/dd hh:mm:ss")
+        self.Time.setObjectName("Time")
 
-        # 테이블에 데이터 추가
-        for i in range(20):
-            for j in range(5):
-                self.tableWIdget_checkout.setItem(i, j, QTableWidgetItem(f"Item {i+1}-{j+1}"))        
+        # 테이블 위젯 설정
+        self.View_Book_List_1 = QtWidgets.QTableWidget(parent=self.centralwidget)
+        self.View_Book_List_1.setGeometry(QtCore.QRect(360, 170, 631, 781))
+        self.View_Book_List_1.setRowCount(30)
+        self.View_Book_List_1.setColumnCount(4)
+        self.View_Book_List_1.setHorizontalHeaderLabels(["책 제목", "저자", "출판사", "책의 상태"])
+        self.View_Book_List_1.setObjectName("View_Book_List_1")
 
-    def Init_Sub_Instance(self):
-        self.widget_cam1_thread = Widget_Cam1_Thread(self.widget_cam1)
-        self.widget_cam1_thread.frame_received.connect(self.widget_cam1.update_frame)  # 프레임 신호 연결
-        self.widget_cam1_thread.start()
+        self.View_Book_List_2 = QtWidgets.QTableWidget(parent=self.centralwidget)
+        self.View_Book_List_2.setGeometry(QtCore.QRect(1010, 170, 631, 781))
+        self.View_Book_List_2.setRowCount(30)
+        self.View_Book_List_2.setColumnCount(4)
+        self.View_Book_List_2.setHorizontalHeaderLabels(["책 제목", "저자", "출판사", "책의 상태"])
+        self.View_Book_List_2.setObjectName("View_Book_List_2")
 
-        self.widget_cam2_thread = Widget_Cam2_Thread(self.widget_cam2)
-        self.widget_cam2_thread.frame_received.connect(self.widget_cam2.update_frame)  # 프레임 신호 연결
-        self.widget_cam2_thread.start()
+        self.Misplacement = QtWidgets.QLabel(parent=self.centralwidget)
+        self.Misplacement.setGeometry(QtCore.QRect(1660, 400, 171, 91))
+        self.Misplacement.setStyleSheet("border: 2px solid black;\n"
+                                        "border-radius: 10px;")
+        self.Misplacement.setObjectName("Misplacement")
 
-        if self.mt_ui is not None:  # None 체크
-            self.mt_ui.set_widget_threads(self.widget_cam1_thread, self.widget_cam2_thread)
-         
-        else:
-            print("Error: mt_ui is None!")
+        self.Normal = QtWidgets.QLabel(parent=self.centralwidget)
+        self.Normal.setGeometry(QtCore.QRect(1660, 270, 171, 91))
+        self.Normal.setStyleSheet("border: 2px solid black;\n"
+                                  "border-radius: 10px;")
+        self.Normal.setObjectName("Normal")
 
+        self.Borrowed = QtWidgets.QLabel(parent=self.centralwidget)
+        self.Borrowed.setGeometry(QtCore.QRect(1660, 150, 171, 91))
+        self.Borrowed.setStyleSheet("border: 2px solid black;\n"
+                                    "border-radius: 10px;")
+        self.Borrowed.setObjectName("Borrowed")
 
-    def Init_btn(self):
-        # 버튼 초기화
-        self.btn_LiveMode = QPushButton("Live", self)
-        self.btn_LiveMode.setCheckable(True)
-        self.btn_LiveMode.resize(300, 100)
-        self.btn_LiveMode.move(100,1200)
-        self.btn_LiveMode.clicked[bool].connect(self.toggleLiveMode)
+        self.Cam_1 = QtWidgets.QLabel(parent=self.centralwidget)
+        self.Cam_1.setGeometry(QtCore.QRect(10, 190, 331, 171))
+        self.Cam_1.setStyleSheet("border: 3px solid black;")
+        self.Cam_1.setObjectName("Cam_1")
 
-        self.btn_Checking_BookStatus = QPushButton("책 상태 검사", self)
-        self.btn_Checking_BookStatus.setCheckable(True)
-        self.btn_Checking_BookStatus.resize(300, 100)
-        self.btn_Checking_BookStatus.move(500, 1200)
-        self.btn_Checking_BookStatus.clicked[bool].connect(self.Checking_BookStatus_Mode)
+        self.Cam_2 = QtWidgets.QLabel(parent=self.centralwidget)
+        self.Cam_2.setGeometry(QtCore.QRect(10, 490, 331, 171))
+        self.Cam_2.setStyleSheet("border: 3px solid black;")
+        self.Cam_2.setObjectName("Cam_2")
 
-    def Init_UI(self):
-        # UI 초기화 부분 (필요 시 추가 작업)
-        pass
+        self.Suggestions = QtWidgets.QLabel(parent=self.centralwidget)
+        self.Suggestions.setGeometry(QtCore.QRect(1650, 700, 230, 341)) 
+        self.Suggestions.setPixmap(QtGui.QPixmap("./Suggestions2.png"))
+        self.Suggestions.setScaledContents(True)
+        self.Suggestions.setObjectName("Suggestions")
 
-    def toggleLiveMode(self, checked):
-        if checked:
-            self.mt_ui.send_message("MT_CAM", "CAM_1", "START_GRABBING", "WIDGET_CAM_1", None)
-            print("Live mode ON, 메시지 전송")
-        else:
-            self.mt_ui.send_message("MT_CAM", "CAM_1", "STOP_GRABBING", "WIDGET_CAM_1", None)
-            print("Live mode OFF, 메시지 전송")
+        MainWindow.setCentralWidget(self.centralwidget)
+        self.statusbar = QtWidgets.QStatusBar(parent=MainWindow)
+        self.statusbar.setObjectName("statusbar")
+        MainWindow.setStatusBar(self.statusbar)
 
-    def Checking_BookStatus_Mode(self, checked):
-        self.dialog = BookStatus_Window(self.mt_ui, self.widget_cam1_thread)  # 기존 스레드를 전달합니다.
-        self.dialog.exec()
+        self.retranslateUi(MainWindow)
+        QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
+    def retranslateUi(self, MainWindow):
+        _translate = QtCore.QCoreApplication.translate
+        MainWindow.setWindowTitle(_translate("MainWindow", "스마트 도서 관리 시스템"))
+        self.Title.setText(_translate("MainWindow", "<html><head/><body><p align=\"center\"><span style=\" font-size:48pt;\">스마트 도서 관리 시스템</span></p></body></html>"))
+        self.Misplacement.setText(_translate("MainWindow", "Misplacement"))
+        self.Normal.setText(_translate("MainWindow", "Normal"))
+        self.Borrowed.setText(_translate("MainWindow", "Borrowed"))
+        self.Cam_1.setText(_translate("MainWindow", "카메라 1"))
+        self.Cam_2.setText(_translate("MainWindow", "카메라 2"))
 
+    def start_threads(self):
+        self.cam1_thread = threading.Thread(target=self.update_cam_1_from_queue)
+        self.cam2_thread = threading.Thread(target=self.update_cam_2_from_queue)
+        self.data_thread = threading.Thread(target=self.update_book_list_from_data_queue)
+        self.cam1_thread.start()
+        self.cam2_thread.start()
+        self.data_thread.start()
 
-class Widget_Cam1_Thread(QThread):
-    frame_received = pyqtSignal(object)  # 신호 선언
+    def update_book_list_from_data_queue(self):
+        while True:
+            if not self.data_queue.empty():
+                message_type, data = self.data_queue.get()
+                if message_type == "UPDATE_BOOK_LIST_1":
+                    self.update_book_list_1(data)
+                elif message_type == "UPDATE_BOOK_LIST_2":
+                    self.update_book_list_2(data)
 
-    def __init__(self, widget_cam1):
-        super().__init__()
-        self.running = True
-        self.widget_cam1 = widget_cam1
-        self.widget_cam1_que = queue.Queue(maxsize=10)  # 큐 크기를 늘림
+    def update_book_list_1(self, highest_books):
+        self.View_Book_List_1.clearContents()
+        for row, book in enumerate(highest_books):
+            self.View_Book_List_1.setItem(row, 0, QtWidgets.QTableWidgetItem(book['title']))
+            self.View_Book_List_1.setItem(row, 1, QtWidgets.QTableWidgetItem(book['author']))
+            self.View_Book_List_1.setItem(row, 2, QtWidgets.QTableWidgetItem(book['publisher']))
+            self.View_Book_List_1.setItem(row, 3, QtWidgets.QTableWidgetItem(book['status']))
 
-    def run(self):
-        while self.running:
-            try:
-                # 큐에서 프레임 가져오기
-                frame = self.widget_cam1_que.get(timeout=1)
-                if frame is not None:
-                    print('get frame widget1:', frame.shape)  # 프레임 로그 추가
-                    # 프레임을 수신하면 update_frame 신호를 발생시킴
-                    self.frame_received.emit(frame)
-                    self.widget_cam1.update_frame(frame)
-            except queue.Empty:
-                print("Queue is empty, retrying...")  # 큐가 비었을 때의 로그
-                continue
-            except Exception as e:
-                print(f"Error in Widget_Cam1_Thread: {e}")  # 예외 처리
+    def update_book_list_2(self, highest_books):
+        self.View_Book_List_2.clearContents()
+        for row, book in enumerate(highest_books):
+            self.View_Book_List_2.setItem(row, 0, QtWidgets.QTableWidgetItem(book['title']))
+            self.View_Book_List_2.setItem(row, 1, QtWidgets.QTableWidgetItem(book['author']))
+            self.View_Book_List_2.setItem(row, 2, QtWidgets.QTableWidgetItem(book['publisher']))
+            self.View_Book_List_2.setItem(row, 3, QtWidgets.QTableWidgetItem(book['status']))
 
-    def put_frame(self, frame):
-        """외부에서 프레임을 큐에 넣기 위한 메서드"""
-        if not self.widget_cam1_que.full():
-            self.widget_cam1_que.put(frame)
-            print('put frame into widget1:', frame.shape)  # 로그 추가
-        else:
-            print("Queue is full")
+    def update_cam_1_from_queue(self):
+        while True:
+            if not self.cam1_queue.empty():
+                frame = self.cam1_queue.get()
+                QtCore.QMetaObject.invokeMethod(
+                    self, "update_cam_1", QtCore.Qt.ConnectionType.QueuedConnection, QtCore.Q_ARG(object, frame)
+                )
 
+    def update_cam_2_from_queue(self):
+        while True:
+            if not self.cam2_queue.empty():
+                frame = self.cam2_queue.get()
+                QtCore.QMetaObject.invokeMethod(
+                    self, "update_cam_2", QtCore.Qt.ConnectionType.QueuedConnection, QtCore.Q_ARG(object, frame)
+                )
 
-    def stop(self):
-        self.running = False
+    @QtCore.pyqtSlot(object)
+    def update_cam_1(self, frame):
+        try:
+            frame = cv2.resize(frame, (self.Cam_1.width(), self.Cam_1.height()))
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            h, w, c = frame.shape
+            qImg = QtGui.QImage(frame.data, w, h, w * c, QtGui.QImage.Format.Format_RGB888)
+            pixmap = QtGui.QPixmap.fromImage(qImg)
+            self.Cam_1.setPixmap(pixmap)
+        except Exception as e:
+            print(f"Error updating frame on Cam_1: {e}")
 
-
-class Widget_Cam2_Thread(QThread):
-    frame_received = pyqtSignal(object)  # 신호 선언
-
-    def __init__(self, widget_cam2):
-        super().__init__()
-        self.running = True
-        self.widget_cam2 = widget_cam2
-        self.widget_cam2_que = queue.Queue(maxsize=5)  # 큐 크기를 제한
-
-    def run(self):
-        while self.running:
-            try:
-                print("Widget_Cam2_Thread")
-                # 큐에서 프레임 가져오기 (오래된 프레임은 자동으로 제거)
-                frame = self.widget_cam2_que.get(timeout=1)
-                print('get frame widget2')
-                if frame is not None:
-                    print('get frame widget2:', frame.shape)  # 프레임 로그 추가
-                    self.frame_received.emit(frame)  # 프레임 수신 시 신호 발생
-                    time.sleep(0.01)
-            except queue.Empty:
-                time.sleep(0.1)
-                continue
-
-    def put_frame(self, frame):
-        """외부에서 프레임을 큐에 넣기 위한 메서드"""
-        if not self.widget_cam1_que.full():
-            self.widget_cam1_que.put(frame)
-            print('put frame into widget2:', frame.shape)  # 로그 추가
-        else:
-            print("Queue is full")
-
-
-    def stop(self):
-        self.running = False
-
-
-class Widget_Cam1(QLabel):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.resize(200, 100)
-
-    def update_frame(self, frame):
-        print("Widget_Cam1_update")
-        widget_width = self.width()
-        widget_height = self.height()
-        frame = cv2.resize(frame,(widget_width, widget_height))
+    @QtCore.pyqtSlot(object)
+    def update_cam_2(self, frame):
+        frame = cv2.resize(frame, (self.Cam_2.width(), self.Cam_2.height()))
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         h, w, c = frame.shape
         qImg = QtGui.QImage(frame.data, w, h, w * c, QtGui.QImage.Format.Format_RGB888)
         pixmap = QtGui.QPixmap.fromImage(qImg)
-        self.setPixmap(pixmap)
-               
-class Widget_Cam2(QLabel):
+        self.Cam_2.setPixmap(pixmap)
+
+class Widget_Login(QtWidgets.QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.resize(200, 100)
+        self.setWindowTitle("로그인")
+        self.setFixedSize(300, 150)
 
-        
-    def update_frame(self, frame):
-        widget_width = self.width()
-        widget_height = self.height()
-        frame = cv2.resize(frame,(widget_width, widget_height))
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        
-        h, w, c = frame.shape
-        qImg = QtGui.QImage(frame.data, w, h, w * c, QtGui.QImage.Format.Format_RGB888)
-        pixmap = QtGui.QPixmap.fromImage(qImg)
-        self.setPixmap(pixmap)
+        # 아이디와 비밀번호 입력 필드 및 버튼 생성
+        self.layout = QtWidgets.QVBoxLayout(self)
 
-class BookStatus_Window(QDialog):
-    def __init__(self, mt_ui, widget_cam1_thread):
-        super().__init__()
-        self.setWindowTitle("책 상태 검사")
-        self.setGeometry(300, 300, 1000, 600)  # 창의 크기 설정
-        self.widget_cam1_thread = widget_cam1_thread  # 기존 스레드를 사용합니다.
-        self.mt_ui = mt_ui  
-  
-        # UI 요소 추가
-        self.btn_Checking_BookStatus = QPushButton("책 검사 실행", self)
-        self.btn_Checking_BookStatus.setCheckable(True)
-        self.btn_Checking_BookStatus.resize(300, 100)
-        self.btn_Checking_BookStatus.move(300,200)
-        self.btn_Checking_BookStatus.clicked[bool].connect(self.check_event)  
-                
-        self.btn_close = QPushButton("닫기", self)
-        self.btn_close.move(150, 200)
-        self.btn_close.clicked.connect(self.close)  # 닫기 버튼 클
+        self.label = QtWidgets.QLabel("아이디와 비밀번호를 입력하세요")
+        self.layout.addWidget(self.label)
 
-    def check_event(self, checked):
-        if checked:
-            # frame = self.widget_cam1_thread.Get_Frame()
-            self.mt_ui.send_message("MT_FUNCTION", "FUNC1", "START_GRABBING", "BOOK_STATUS_BTN", None)
-            print("Checking book status 메세지 전송")
-        else:
-            print("Checking book status 메세지 실패")
+        self.id_input = QtWidgets.QLineEdit(self)
+        self.id_input.setPlaceholderText("아이디")
+        self.layout.addWidget(self.id_input)
 
+        self.password_input = QtWidgets.QLineEdit(self)
+        self.password_input.setPlaceholderText("비밀번호")
+        self.password_input.setEchoMode(QtWidgets.QLineEdit.EchoMode.Password)
+        self.layout.addWidget(self.password_input)
 
+        self.error_label = QtWidgets.QLabel("")
+        self.error_label.setStyleSheet("color: red")
+        self.layout.addWidget(self.error_label)
 
+        self.login_btn = QtWidgets.QPushButton("로그인", self)
+        self.layout.addWidget(self.login_btn)
 
-class Widget_Login(QWidget):
-    def __init__(self, mt_ui):
-        super().__init__()
-        self.setWindowTitle("Login")
-        self.mt_ui = mt_ui  
-        monitor_size = self.screen().availableGeometry()
-        self.setGeometry(int(monitor_size.x() + monitor_size.width() / 2 - 100),
-                         int(monitor_size.y() + monitor_size.height() / 2 - 50),
-                         400, 200)
-        self.main_window = None
-
-        self.result_label = QLabel('', self)
-        self.id_label = QLabel('ID : ', self)
-        self.id_input = QLineEdit(self)
-        self.id_input.setPlaceholderText('아이디를 입력 해 주세요')
-
-        self.password_label = QLabel('Password : ', self)
-        self.password_input = QLineEdit(self)
-        self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.password_input.setPlaceholderText('비밀번호를 입력 해 주세요')
-
-        self.login_btn = QPushButton("Login")
-        self.login_btn.clicked.connect(self.ChekcIsCorrect)
-
-        form_layout = QVBoxLayout()
-
-        id_layout = QHBoxLayout()
-        id_layout.addWidget(self.id_label)
-        id_layout.addWidget(self.id_input)
-
-        password_layout = QHBoxLayout()
-        password_layout.addWidget(self.password_label)
-        password_layout.addWidget(self.password_input)
-
-        form_layout.addLayout(id_layout)
-        form_layout.addLayout(password_layout)
-        form_layout.addWidget(self.login_btn)
-        form_layout.addWidget(self.result_label)
-
-        self.setLayout(form_layout)
-              
     def ChekcIsCorrect(self):
-        if self.id_input.text() == 'yspsk1994' and self.password_input.text() == "1234":
-            self.result_label.setText("Login successful")
-            # self.StartMainWindow()
-            return True            
+        # 간단한 아이디/비밀번호 검증
+        user_id = self.id_input.text()
+        password = self.password_input.text()
+        if user_id == "admin" and password == "1234":
+            return True
         else:
-            self.result_label.setText('Invalid ID or Password')
+            self.error_label.setText("아이디나 비밀번호를 다시 입력 해 주세요")
             return False

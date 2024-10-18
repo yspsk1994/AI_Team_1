@@ -16,6 +16,10 @@ class MT_DB(threading.Thread):
     def send_message(self, target, final_target, message, sender, data=None):
         self._mediator.send_message(target, final_target, message, sender, data)
 
+    def set_mediator(self, mediator):
+        """Mediator를 설정하는 메서드."""
+        self._mediator = mediator
+        print(f"{self.name}: Mediator has been set.")
     
     def run(self):
         while self.running:

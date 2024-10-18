@@ -1,43 +1,54 @@
-from ConcreteMediator import ConcreteMediator
-import threading
-import queue
-from Function import Checking_Book_Status
-class MT_Function(threading.Thread):
+from threading import Thread
+from function.Checking_Book_Status import BookStatus
+import time
+from queue import Queue
 
-    def __init__(self, mediator, name):
+class MT_Function(Thread):
+    def __init__(self, mediator, name, function_queue):
         super().__init__()
         self._mediator = mediator
-        self._name = name
+        self.name = name
         self.running = True
-        self.main_function_que = queue.Queue()
+        self.checking_book_status = BookStatus()
+        self.function_queue = function_queue
+        self.cam1_function_queue = Queue()
+        self.cam2_function_queue = Queue()
 
-        self.func1_thread = Checking_Book_Status.BookStatus_Thread()
-        self.func1_thread.start()
-        
-    def receive_message(self, target, final_target, message, sender, data=None):
-        self.main_function_que.put((target, final_target, message,sender, data))
+    def set_mediator(self, mediator):
+        self._mediator = mediator
 
-    def send_message(self, target, final_target, message, sender, data=None):
-        self._mediator.send_message(target, final_target, message, sender, data)
-
-    
     def run(self):
+        cam1_thread = Thread(target=self.process_cam1_frames)
+        cam2_thread = Thread(target=self.process_cam2_frames)
+        cam1_thread.start()
+        cam2_thread.start()
+
         while self.running:
-            try:
-                print("MT_Function")
-                target, final_target, message, sender, data = self.main_function_que.get()
-                if final_target == 'FUNC1':
-                    self.func1_thread.bookstatus_receive_que.put(data)
-                    # self.func1_thread.running = True
-                elif message == 'function2':
-                    return
-                elif message == 'function2':
-                    return
-                elif message == 'function3':
-                    return
-            except queue.Empty:
-                continue
-                
+            if not self.function_queue.empty():
+                target, frame = self.function_queue.get()
+                if target == 'CAM_1_CHECK_BOOK_STATUS':
+                    self.cam1_function_queue.put(frame)
+                elif target == 'CAM_2_CHECK_BOOK_STATUS':
+                    self.cam2_function_queue.put(frame)
+            time.sleep(0.1)
+        cam1_thread.join()
+        cam2_thread.join()
+
+    def process_cam1_frames(self):
+        while self.running:
+            if not self.cam1_function_queue.empty():
+                frame = self.cam1_function_queue.get()
+                highest_books = self.checking_book_status.Do_Process(frame)
+                self._mediator.send_message("UI", "UPDATE_BOOK_LIST_1", highest_books)
+            time.sleep(0.1)
+
+    def process_cam2_frames(self):
+        while self.running:
+            if not self.cam2_function_queue.empty():
+                frame = self.cam2_function_queue.get()
+                highest_books = self.checking_book_status.Do_Process(frame)
+                self._mediator.send_message("UI", "UPDATE_BOOK_LIST_2", highest_books)
+            time.sleep(0.1)
 
     def stop(self):
-        self.main_function_que._stop()
+        self.running = False
