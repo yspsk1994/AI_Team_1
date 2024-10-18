@@ -10,23 +10,34 @@ from ultralytics import YOLO
 from paddleocr import PaddleOCR
 import time
 import shutil
+import pdb
 
+CROPPED_FOLDER = "cropped_images"
+DET_MODEL_DIR = 'model/PaddleOCR/detection'
+REC_MODEL_DIR = 'model/PaddleOCR/my_recognition/v3_ft_word'
+EXCEL_PATH = 'data/total_book_list.xlsx'
+PROCESS_INTERVAL = 5
+        
 class BookStatus_Thread(threading.Thread):
     def __init__(self):
         super().__init__()
         self.running = True
-
         self.bookstatus_receive_que = queue.Queue()
         self.bookstatus_send_que = queue.Queue()
         self.bookstatus = BookStatus()
-        
+        self.yolo_model = self.bookstatus.initialize_yolo()
+        self.ocr = self.bookstatus.initialize_ocr(DET_MODEL_DIR, REC_MODEL_DIR)
     def run(self):
         while self.running:
-                if not self.bookstatus_receive_que.empty():
-                    frame = self.bookstatus_receive_que.get()
-                    self.bookstatus.Do_Process(frame)
-                    self.running = False
-                    
+            try:
+                print(f"BookStatus_Thread")
+                frame = self.bookstatus_receive_que.get()
+                self.bookstatus.Do_Process(frame)
+                # self.running = False
+                time.sleep(0.1)
+            except queue.Empty:
+                time.sleep(0.1)
+                continue        
           
     def stop(self):
         self.running = False
@@ -314,15 +325,8 @@ class BookStatus:
         return [book for book in current_order if book not in lis_set]
     
     def Do_Process(self,frame):
-        CROPPED_FOLDER = "cropped_images"
-        DET_MODEL_DIR = 'model/PaddleOCR/detection'
-        REC_MODEL_DIR = 'model/PaddleOCR/my_recognition/v3_ft_word'
-        EXCEL_PATH = 'data/total_book_list.xlsx'
-        PROCESS_INTERVAL = 5
-
+      
         try:
-            yolo_model = self.initialize_yolo()
-            ocr = self.initialize_ocr(DET_MODEL_DIR, REC_MODEL_DIR)
             os.makedirs(CROPPED_FOLDER, exist_ok=True)
 
             book_list, book_df = self.load_book_list(EXCEL_PATH)
@@ -332,14 +336,14 @@ class BookStatus:
             previous_books = []
 
             current_time = time.time()
-
+            pdb.set_trace()
             if current_time - last_process_time >= PROCESS_INTERVAL:
                 if os.path.exists(CROPPED_FOLDER):
                     shutil.rmtree(CROPPED_FOLDER)
                 os.makedirs(CROPPED_FOLDER, exist_ok=True)
                 
                 frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                results = self.predict_with_yolo(yolo_model, frame_rgb)
+                results = self.predict_with_yolo(self.yolo_model, frame_rgb)
 
                 if results and len(results) > 0 and results[0].boxes is not None and len(results[0].boxes) > 0:
                     boxes = results[0].boxes.xyxy.cpu().numpy().astype(int)
@@ -354,7 +358,7 @@ class BookStatus:
                     all_matches = []
                     for idx, (box, mask) in enumerate(zip(valid_boxes, valid_masks)):
                         cropped_filename = self.crop_and_save_image(frame_rgb, mask, box, idx, CROPPED_FOLDER)
-                        matches = self.process_cropped_image(ocr, cropped_filename, book_list)
+                        matches = self.process_cropped_image(self.ocr, cropped_filename, book_list)
                         all_matches.append(matches)
 
                     highest_books = self.collect_highest_similarity_books(all_matches, book_df)
@@ -370,10 +374,6 @@ class BookStatus:
                     print("감지된 객체가 없습니다.")
 
                 last_process_time = current_time
-
-
-            # cap.release()
-            cv2.destroyAllWindows()
 
         except Exception as e:
             print(f"오류 발생: {e}")
