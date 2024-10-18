@@ -17,35 +17,27 @@ DET_MODEL_DIR = 'model/PaddleOCR/detection'
 REC_MODEL_DIR = 'model/PaddleOCR/my_recognition/v3_ft_word'
 EXCEL_PATH = 'data/total_book_list.xlsx'
 PROCESS_INTERVAL = 5
-        
-class BookStatus_Thread(threading.Thread):
-    def __init__(self):
-        super().__init__()
-        self.running = True
-        self.bookstatus_receive_que = queue.Queue()
-        self.bookstatus_send_que = queue.Queue()
-        self.bookstatus = BookStatus()
-        self.yolo_model = self.bookstatus.initialize_yolo()
-        self.ocr = self.bookstatus.initialize_ocr(DET_MODEL_DIR, REC_MODEL_DIR)
-    def run(self):
-        while self.running:
-            try:
-                print(f"BookStatus_Thread")
-                frame = self.bookstatus_receive_que.get()
-                self.bookstatus.Do_Process(frame)
-                # self.running = False
-                time.sleep(0.1)
-            except queue.Empty:
-                time.sleep(0.1)
-                continue        
-          
-    def stop(self):
-        self.running = False
-        self.join()
-        
+     
         
 class BookStatus:
-    
+
+    def __init__(self):
+        self.yolo_model = self.initialize_yolo('model/yolo/yolo_trainv2.pt')
+        self.ocr = self.initialize_ocr(DET_MODEL_DIR, REC_MODEL_DIR)
+        self.last_process_time = time.time()
+
+    def initialize_yolo(self, model_path):
+        return YOLO(model_path)
+
+    def initialize_ocr(self, det_model_dir, rec_model_dir, lang='korean', show_log=False):
+        return PaddleOCR(
+            det_model_dir=det_model_dir,
+            rec_model_dir=rec_model_dir,
+            use_angle_cls=True,
+            lang=lang,
+            show_log=show_log
+        )
+        
     def update_book_status(self,current_books, previous_books, book_df, excel_path):
         updated = False
 
@@ -106,18 +98,14 @@ class BookStatus:
                         extracted_text += text + "\n"
         return extracted_text.strip()
 
-    def process_cropped_image(self,ocr, cropped_filename, book_list):
-        extracted_text = self.extract_text_from_image(ocr, cropped_filename)
-        
-        if not extracted_text:
-            return []
 
-        full_text = ' '.join(extracted_text.split())
+    def process_cropped_image(self, ocr, cropped_image, book_list):
+        result = ocr.ocr(cropped_image, cls=True)
+        extracted_text = ' '.join([line[1][0] for line in result[0]])
         matches = sorted(
-            [(book, fuzz.partial_ratio(full_text, book)) for book in book_list],
+            [(book, fuzz.partial_ratio(extracted_text, book)) for book in book_list],
             key=lambda x: x[1], reverse=True
         )
-        
         return matches
 
     def load_book_list(self,excel_path):
@@ -206,7 +194,7 @@ class BookStatus:
         return masks
                     
     def sort_boxes_and_masks(self,boxes, masks):
-        sorted_indices = sorted(range(len(boxes)), key=lambda i: boxes[i][0])  # 박스의 왼쪽 x 좌표로 정렬
+        sorted_indices = sorted(range(len(boxes)), key=lambda i: boxes[i][0]) 
         sorted_boxes = [boxes[i] for i in sorted_indices]
         sorted_masks = [masks[i] for i in sorted_indices]
         return sorted_boxes, sorted_masks, sorted_indices
@@ -234,35 +222,13 @@ class BookStatus:
         
         return valid_boxes, updated_masks, original_indices
 
-    def crop_and_save_image(self,image, mask, box, idx, output_folder):
+#ok
+    def crop_image(self, image, mask, box):
         mask = (mask * 255).astype(np.uint8)
         mask_resized = cv2.resize(mask, (image.shape[1], image.shape[0]))
         cropped_image = cv2.bitwise_and(image, image, mask=mask_resized)
-
         x_min, y_min, x_max, y_max = box
-        cropped_image = cropped_image[y_min:y_max, x_min:x_max]
-
-        gray = cv2.cvtColor(cropped_image, cv2.COLOR_RGB2GRAY)
-
-        _, thresh = cv2.threshold(gray, 1, 255, cv2.THRESH_BINARY)
-
-        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-        if contours:
-            largest_contour = max(contours, key=cv2.contourArea)
-
-            new_mask = np.zeros(gray.shape, np.uint8)
-            cv2.drawContours(new_mask, [largest_contour], 0, 255, -1)
-
-            result = cv2.bitwise_and(cropped_image, cropped_image, mask=new_mask)
-        else:
-            result = cropped_image
-
-        cropped_filename = os.path.join(output_folder, f'cropped_{idx:03d}.png')
-        cv2.imwrite(cropped_filename, cv2.cvtColor(result, cv2.COLOR_RGB2BGR))
-        
-        return cropped_filename
-    
+        return cropped_image[y_min:y_max, x_min:x_max]
     def initialize_yolo(self,model_path='model/yolo/yolo_trainv2.pt'):
         return YOLO(model_path)
 
@@ -275,16 +241,6 @@ class BookStatus:
             show_log=show_log
         )
 
-    def initialize_webcam(self,camera_index=0):
-        cap = cv2.VideoCapture(camera_index)
-        if not cap.isOpened():
-            raise IOError("웹캠을 열 수 없습니다.")
-        
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)  # 1920x1080 해상도
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-        
-        return cap
-    
     def find_lis(self,current_order, correct_order):
         pos_map = {book: i for i, book in enumerate(correct_order)}
         transformed_order = [pos_map.get(book, -1) for book in current_order if book in pos_map]
@@ -324,56 +280,34 @@ class BookStatus:
         lis_set = set(lis_books)
         return [book for book in current_order if book not in lis_set]
     
-    def Do_Process(self,frame):
-      
+    def Do_Process(self, frame):
         try:
-            os.makedirs(CROPPED_FOLDER, exist_ok=True)
-
             book_list, book_df = self.load_book_list(EXCEL_PATH)
-            # cap = self.initialize_webcam()
-
-            last_process_time = time.time()
             previous_books = []
 
-            current_time = time.time()
-            pdb.set_trace()
-            if current_time - last_process_time >= PROCESS_INTERVAL:
-                if os.path.exists(CROPPED_FOLDER):
-                    shutil.rmtree(CROPPED_FOLDER)
-                os.makedirs(CROPPED_FOLDER, exist_ok=True)
-                
-                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                results = self.predict_with_yolo(self.yolo_model, frame_rgb)
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            results = self.predict_with_yolo(self.yolo_model, frame_rgb)
 
-                if results and len(results) > 0 and results[0].boxes is not None and len(results[0].boxes) > 0:
-                    boxes = results[0].boxes.xyxy.cpu().numpy().astype(int)
-                    masks = results[0].masks.data.cpu().numpy() if results[0].masks is not None else None
+            if results and len(results) > 0 and results[0].boxes is not None:
+                boxes = results[0].boxes.xyxy.cpu().numpy().astype(int)
+                masks = results[0].masks.data.cpu().numpy() if results[0].masks is not None else None
 
-                    if masks is not None:
-                        valid_boxes, valid_masks, valid_indices = self.process_boxes_and_masks(boxes, masks)
-                    else:
-                        valid_boxes, valid_indices = boxes, list(range(len(boxes)))
-                        valid_masks = [None] * len(valid_boxes)
+                valid_boxes, valid_masks, _ = self.process_boxes_and_masks(boxes, masks)
+                all_matches = []
 
-                    all_matches = []
-                    for idx, (box, mask) in enumerate(zip(valid_boxes, valid_masks)):
-                        cropped_filename = self.crop_and_save_image(frame_rgb, mask, box, idx, CROPPED_FOLDER)
-                        matches = self.process_cropped_image(self.ocr, cropped_filename, book_list)
-                        all_matches.append(matches)
+                for idx, (box, mask) in enumerate(zip(valid_boxes, valid_masks)):
+                    cropped_image = self.crop_image(frame_rgb, mask, box)
+                    matches = self.process_cropped_image(self.ocr, cropped_image, book_list)
+                    all_matches.append(matches)
 
-                    highest_books = self.collect_highest_similarity_books(all_matches, book_df)
-                    
-                    current_books = [book['combined'] for book in highest_books]
-                    
-                    book_df = self.update_book_status(current_books, previous_books, book_df, EXCEL_PATH)
-                    
-                    previous_books = current_books
+                highest_books = self.collect_highest_similarity_books(all_matches, book_df)
+                current_books = [book['combined'] for book in highest_books]
 
-                    self.save_books_to_excel(highest_books, 'data/current_book_list.xlsx')
-                else:
-                    print("감지된 객체가 없습니다.")
+                book_df = self.update_book_status(current_books, previous_books, book_df, EXCEL_PATH)
+                previous_books = current_books
 
-                last_process_time = current_time
+                self.save_books_to_excel(highest_books, 'data/current_book_list.xlsx')
+
 
         except Exception as e:
             print(f"오류 발생: {e}")

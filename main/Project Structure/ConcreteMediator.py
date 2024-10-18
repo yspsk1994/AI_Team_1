@@ -1,14 +1,18 @@
-from Mediator import Mediator
+class ConcreteMediator:
+    def __init__(self, cam1_queue, cam2_queue, ui_queue, function_queue):
+        self.users = {}
+        self.cam1_queue = cam1_queue
+        self.cam2_queue = cam2_queue
+        self.ui_queue = ui_queue
+        self.function_queue = function_queue
 
-class  ConcreteMediator (Mediator): 
-    def  __init__ ( self ): 
-        self.users = [] 
-        
-    def  add_user ( self, user ): 
-         self.users.append(user) 
+    def add_user(self, user):
+        self.users[user.name] = user
+        user.set_mediator(self)
 
-    def send_message(self, target, final_target, message, sender, data=None): 
-        print(f"Sending message to {final_target} via Mediator")  # 로그 추가
-        for user in self.users: 
-            if user.name == target:
-                user.receive_message(target, final_target,message, sender, data)
+    def send_message(self, target, message_type, data=None):
+        if target == "UI":
+            if message_type == "UPDATE_BOOK_LIST_1":
+                self.ui_queue.put(("UPDATE_BOOK_LIST_1", data))
+            elif message_type == "UPDATE_BOOK_LIST_2":
+                self.ui_queue.put(("UPDATE_BOOK_LIST_2", data))

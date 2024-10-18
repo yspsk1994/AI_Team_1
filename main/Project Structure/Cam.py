@@ -1,67 +1,48 @@
-import multiprocessing
 import cv2
 import time
-from multiprocessing import Queue
 
-class Cam1_Process(multiprocessing.Process):
-    def __init__(self):
-        super().__init__()
-        self.running = multiprocessing.Value('b', True)  # 프로세스 실행 여부
-        self.is_start_grabbing = multiprocessing.Value('b', False)  # 프레임 캡처 시작 여부
-        self.cam1_send_que = Queue()  # 프레임을 전송할 큐
+def cam1_process(ui_queue, function_queue):
+    cap = cv2.VideoCapture(0)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+    last_send_time = time.time()
+    running = True
 
-        self.cap = cv2.VideoCapture(1)  # 카메라 장치 5번 사용
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+    try:
+        while running:
+            ret, frame = cap.read()
+            if ret:
+                # 프레임을 UI 큐에 추가하여 UI로 전송
+                ui_queue.put(('WIDGET_CAM_1', frame.copy()))
+                current_time = time.time()
+                if current_time - last_send_time >= 5:
+                    # 기능 큐에 프레임을 추가하여 5초마다 처리 요청
+                    function_queue.put(('CAM_1_CHECK_BOOK_STATUS', frame.copy()))
+                    last_send_time = current_time
+            time.sleep(0.1)
+    finally:
+        cap.release()
+        print("Camera 1 released.")
 
-    def run(self):
-        try:
-            while self.running.value:
-                # print("Cam1_Process")
-                if self.is_start_grabbing.value:
-                    ret, frame = self.cap.read()
-                    if ret:
-                        # 프레임 전송
-                        self.cam1_send_que.put(("MT_UI", "WIDGET_CAM_1", "GET_FRAME", "CAM_1", frame))
-                time.sleep(0.5)  # CPU 부하를 줄이기 위한 대기
-        except Exception as e:
-            print(f"Exception in Cam1_Process: {e}")
-        finally:
-            self.cap.release()  # 프로세스 종료 시 카메라 자원 해제
-            print("Cam1_Process stopped and camera released.")
+def cam2_process(ui_queue, function_queue):
+    cap = cv2.VideoCapture(3)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+    last_send_time = time.time()
+    running = True
 
-    def stop(self):
-        with self.running.get_lock():
-            self.running.value = False  # 프로세스 종료
-
-
-class Cam2_Process(multiprocessing.Process):
-    def __init__(self):
-        super().__init__()
-        self.running = multiprocessing.Value('b', True)  # 프로세스 실행 여부
-        self.is_start_grabbing = multiprocessing.Value('b', False)  # 프레임 캡처 시작 여부
-        self.cam2_send_que = Queue()  # 프레임을 전송할 큐
-
-        self.cap = cv2.VideoCapture(1)  # 카메라 장치 0번 사용
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-
-    def run(self):
-        try:
-            while self.running.value:
-                # print("Cam2_Process")
-                if self.is_start_grabbing.value:
-                    ret, frame = self.cap.read()
-                    if ret:
-                        # 프레임 전송
-                        self.cam2_send_que.put(("MT_UI", "WIDGET_CAM_2", "GET_FRAME", "CAM_2", frame))
-                time.sleep(0.5)  # CPU 부하를 줄이기 위한 대기
-        except Exception as e:
-            print(f"Exception in Cam2_Process: {e}")
-        finally:
-            self.cap.release()  # 프로세스 종료 시 카메라 자원 해제
-            print("Cam2_Process stopped and camera released.")
-
-    def stop(self):
-        with self.running.get_lock():
-            self.running.value = False  # 프로세스 종료
+    try:
+        while running:
+            ret, frame = cap.read()
+            if ret:
+                # 프레임을 UI 큐에 추가하여 UI로 전송
+                ui_queue.put(('WIDGET_CAM_2', frame.copy()))
+                current_time = time.time()
+                if current_time - last_send_time >= 5:
+                    # 기능 큐에 프레임을 추가하여 5초마다 처리 요청
+                    function_queue.put(('CAM_2_CHECK_BOOK_STATUS', frame.copy()))
+                    last_send_time = current_time
+            time.sleep(0.1)
+    finally:
+        cap.release()
+        print("Camera 2 released.")
