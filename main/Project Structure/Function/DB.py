@@ -14,7 +14,7 @@ class DB_Function:
     def connect_to_db(self):
         try:
             connection = mysql.connector.connect(
-                host='localhost',       # MySQL 서버 주소
+                host='10.10.16.157',       # MySQL 서버 주소
                 database='smartlibrary', # 사용할 데이터베이스 이름
                 user='pushingman',     # MySQL 사용자 이름
                 password='p###hoHO1357'  # MySQL 비밀번호

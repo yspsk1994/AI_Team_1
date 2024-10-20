@@ -1,54 +1,55 @@
-from threading import Thread
-from function.Checking_Book_Status import BookStatus
+import threading
+import queue
+from Function.Checking_Book_Status import BookStatus
 import time
-from queue import Queue
+from concurrent.futures import ThreadPoolExecutor
 
-class MT_Function(Thread):
-    def __init__(self, mediator, name, function_queue):
+class MT_Function(threading.Thread):
+    def __init__(self, mediator, name, function_queue,update_data_queue, db_function):
         super().__init__()
-        self._mediator = mediator
+        self.mediator = mediator
         self.name = name
-        self.running = True
-        self.checking_book_status = BookStatus()
         self.function_queue = function_queue
-        self.cam1_function_queue = Queue()
-        self.cam2_function_queue = Queue()
-
-    def set_mediator(self, mediator):
-        self._mediator = mediator
+        self.update_data_queue = update_data_queue
+        self.db_function = db_function
+        self.running = True
+        self.checking_book_status = BookStatus(db_function,update_data_queue)
+        
+        self.executor = ThreadPoolExecutor(max_workers=2)  # 스레드 풀 설정
 
     def run(self):
-        cam1_thread = Thread(target=self.process_cam1_frames)
-        cam2_thread = Thread(target=self.process_cam2_frames)
-        cam1_thread.start()
-        cam2_thread.start()
+        function_thread = threading.Thread(target = self.process_function_frames)
+        update_data_thread = threading.Thread(target=self.process_update_data_queue)
+     
+        function_thread.start()
+        update_data_thread.start()
 
+        function_thread.join()
+        update_data_thread.join()
+
+    def process_function_frames(self):
         while self.running:
-            if not self.function_queue.empty():
-                target, frame = self.function_queue.get()
-                if target == 'CAM_1_CHECK_BOOK_STATUS':
-                    self.cam1_function_queue.put(frame)
-                elif target == 'CAM_2_CHECK_BOOK_STATUS':
-                    self.cam2_function_queue.put(frame)
-            time.sleep(0.1)
-        cam1_thread.join()
-        cam2_thread.join()
+            try:
+                target, frame = self.function_queue.get(timeout=0.1)
+                if target == f'{self.name}_CHECK_BOOK_STATUS':
+                    # 비동기적으로 numpy 배열만 전달
+                    self.executor.submit(self.checking_book_status.Do_Process, frame.copy())
+            except queue.Empty:
+                pass
 
-    def process_cam1_frames(self):
+    def process_update_data_queue(self):
         while self.running:
-            if not self.cam1_function_queue.empty():
-                frame = self.cam1_function_queue.get()
-                highest_books = self.checking_book_status.Do_Process(frame)
-                self._mediator.send_message("UI", "UPDATE_BOOK_LIST_1", highest_books)
-            time.sleep(0.1)
-
-    def process_cam2_frames(self):
-        while self.running:
-            if not self.cam2_function_queue.empty():
-                frame = self.cam2_function_queue.get()
-                highest_books = self.checking_book_status.Do_Process(frame)
-                self._mediator.send_message("UI", "UPDATE_BOOK_LIST_2", highest_books)
-            time.sleep(0.1)
-
+            try:
+                # update_data_queue에서 데이터를 수신하고 UI로 전달
+                message_type, data = self.update_data_queue.get(timeout=0.1)
+                if message_type == "UPDATE_BOOK_LIST":
+                    self.mediator.message_queue.put(("UI", "UPDATE_BOOK_LIST", data))
+            except queue.Empty:
+                pass
+            
     def stop(self):
         self.running = False
+        self.executor.shutdown(wait=True)  # 스레드 풀 종료
+        self.join()
+    def set_mediator(self, mediator):
+        self._mediator = mediator
