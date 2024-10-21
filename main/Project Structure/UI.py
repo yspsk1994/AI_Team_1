@@ -2,6 +2,8 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 import cv2
 import threading
 import queue
+import pandas as pd
+from Function.DB import DB_Function
 class Cam_1_Thread(QtCore.QThread):
     update_frame = QtCore.pyqtSignal(object)
 
@@ -47,7 +49,7 @@ class Ui_MainWindow(QtWidgets.QMainWindow):
         self.mt_ui_thread = mt_ui_thread
         self.cam1_queue = self.mt_ui_thread.cam1_queue
         self.cam2_queue = self.mt_ui_thread.cam2_queue
-
+        self.db_function = DB_Function()
             
         self.update_data_queue_1 = self.mt_ui_thread.update_data_queue_1        
         self.update_data_queue_2 = self.mt_ui_thread.update_data_queue_2
@@ -134,7 +136,12 @@ class Ui_MainWindow(QtWidgets.QMainWindow):
         self.View_Book_List_1.setColumnWidth(2, 150)
         self.View_Book_List_1.setColumnWidth(3, 130)
     
-
+        self.Add_NewBooks_BTN = QtWidgets.QPushButton('신간 도서 등록',parent=self.centralwidget)
+        self.Add_NewBooks_BTN.clicked.connect(self.on_newbooks_btn)
+        self.Add_NewBooks_BTN.setGeometry(QtCore.QRect(1660, 530, 150, 50)) 
+        self.Add_NewBooks_BTN.setStyleSheet("border: 2px solid black;\n"
+                                        "border-radius: 10px;")
+        
         self.View_Book_List_2_label = QtWidgets.QLabel(parent=self.centralwidget)
         self.View_Book_List_2_label.setText("책장 2")
         self.View_Book_List_2_label.setGeometry(550,570,200,100)
@@ -216,6 +223,26 @@ class Ui_MainWindow(QtWidgets.QMainWindow):
         self.Cam_1.setText(_translate("MainWindow", "카메라 1"))
         self.Cam_2.setText(_translate("MainWindow", "카메라 2"))
 
+    def on_newbooks_btn(self):
+        #fname=QtWidgets.QFileDialog.getOpenFileName(self,'','','Exel(*.xlsx)')
+        #candi_list = pd.read_excel(fname[0])
+        #print('ppp엑셀파일 잘 불러옴')
+        print('버튼이 눌렀음')
+        self.db_function.adding_new_books()
+        print('adding_new_books 캡슐함수 끝!')
+        '''
+        for index, row in candi_list.iterrows():
+            print(f'ppp {index}, {row}')
+            rrr = self.db_function.assign_unique_num(row)
+            candi_list.at[index, '청구기호'] = rrr
+        
+        print('ppp 청구기호 내용 있는 엑셀파일 생성할거야~')    
+        candi_list.to_excel('updated_file.xlsx', index=False, engine='openpyxl')
+
+        # file_path = 'updated_file.xlsx'
+        # self.db_function.insert_data_from_xls(file_path)
+        '''             
+        
     def start_threads(self):
             self.cam1_thread = Cam_1_Thread(self.cam1_queue)
             self.cam1_thread.update_frame.connect(self.update_cam_1)
