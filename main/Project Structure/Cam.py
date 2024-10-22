@@ -16,6 +16,7 @@ def cam1_process(widget_cam_1_queue, function_1_queue):
                 widget_cam_1_queue.put(('WIDGET_CAM_1', frame_resized.copy()))
                 current_time = time.time()
                 if current_time - last_send_time >= 3:
+                    # 기능 큐에 프레임을 추가하여 5초마다 처리 요청
                     function_1_queue.put(('FUNCTION_1_CHECK_BOOK_STATUS', frame.copy()))
                     last_send_time = current_time
             time.sleep(0.01)

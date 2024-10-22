@@ -1,5 +1,5 @@
 import threading
-from .DB import DB_Function
+from DB import DB_Function
 import queue
 import cv2
 import pandas as pd
@@ -176,7 +176,7 @@ class BookStatus(DB_Function):
                     all_matches.append(matches)
                 
                 highest_books = self.collect_highest_similarity_books(all_matches, book_df)
-                # current_books = [book['combined'] for book in highest_books]
+                current_books = [book['combined'] for book in highest_books]
                 self.update_data_queue.put(('UPDATE_BOOK_LIST', highest_books))
                 
                 print("put update book list .")
