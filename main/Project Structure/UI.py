@@ -4,6 +4,7 @@ import threading
 import queue
 import pandas as pd
 from Function.DB import DB_Function
+
 class Cam_1_Thread(QtCore.QThread):
     update_frame = QtCore.pyqtSignal(object)
 
@@ -11,7 +12,6 @@ class Cam_1_Thread(QtCore.QThread):
         super().__init__()
         self.cam1_queue = cam1_queue
         self.running = True
-
     def run(self):
         while self.running:
             try:
@@ -50,7 +50,7 @@ class Ui_MainWindow(QtWidgets.QMainWindow):
         self.cam1_queue = self.mt_ui_thread.cam1_queue
         self.cam2_queue = self.mt_ui_thread.cam2_queue
         self.db_function = DB_Function()
-            
+
         self.update_data_queue_1 = self.mt_ui_thread.update_data_queue_1        
         self.update_data_queue_2 = self.mt_ui_thread.update_data_queue_2
         self.setupUi(self)
@@ -58,10 +58,7 @@ class Ui_MainWindow(QtWidgets.QMainWindow):
         self.start_time_update() 
         self.setFocus()
         
-    def paintEvent(self, event):
-        painter = QtGui.QPainter(self)
-        painter.drawPixmap(self.rect(), self.background_img)
-        
+
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
         MainWindow.resize(1871, 1092)
@@ -176,6 +173,32 @@ class Ui_MainWindow(QtWidgets.QMainWindow):
                                     "border-radius: 10px;")
         self.Borrowed.setObjectName("Borrowed")
 
+        self.button = QtWidgets.QPushButton("신간 도서 등록", parent=self.centralwidget)
+        self.button.setGeometry(1660, 500, 100, 100)  
+        self.button.clicked.connect(self.on_button_click) 
+        self.button.setStyleSheet('''
+                                  QPushButton{
+                                        color: rgb(58, 134, 255);
+                                        background-color: white;
+                                        border: 2px solid rgb(58, 134, 255);
+                                        border-radius: 5px;
+                                    }
+                                    QPushButton:hover{
+                                        background-color : rgb(200, 255, 30);
+                                        border-color : rgb(255, 200, 28);	
+                                        border-style : solid;
+                                        border-width : 5px;
+                                        border-radius : 30px;
+                                    }
+
+                                    QPushButton:pressed {
+                                        background-color : rgb(200, 100, 30);
+                                        border-color : rgb(255, 200, 28);	
+                                        border-style : solid;
+                                        border-width : 5px;
+                                        border-radius : 30px;
+                                    }
+                                  ''')
 
 
         self.Cam_1_label = QtWidgets.QLabel(parent=self.centralwidget)
@@ -199,12 +222,17 @@ class Ui_MainWindow(QtWidgets.QMainWindow):
         self.Cam_2.setStyleSheet("border: 3px solid black;")
         self.Cam_2.setObjectName("Cam_2")
         
-        self.Suggestions = QtWidgets.QLabel(parent=self.centralwidget)
-        self.Suggestions.setGeometry(QtCore.QRect(1550, 600, 260, 360)) 
+   
+        # ClickableLabel 생성 및 설정 (이미지와 클릭 이벤트 처리)
+        self.Suggestions = ClickableLabel(parent=self.centralwidget)
+        self.Suggestions.setGeometry(QtCore.QRect(1570, 720, 200, 230))
         self.Suggestions.setPixmap(QtGui.QPixmap("./Suggestions2.png"))
         self.Suggestions.setScaledContents(True)
         self.Suggestions.setObjectName("Suggestions")
 
+        # 클릭 이벤트 연결
+        self.Suggestions.clicked.connect(self.on_button_click_suggestion)
+        
         MainWindow.setCentralWidget(self.centralwidget)
         self.statusbar = QtWidgets.QStatusBar(parent=MainWindow)
         self.statusbar.setObjectName("statusbar")
@@ -251,7 +279,16 @@ class Ui_MainWindow(QtWidgets.QMainWindow):
             self.cam2_thread = Cam_2_Thread(self.cam2_queue)
             self.cam2_thread.update_frame.connect(self.update_cam_2)
             self.cam2_thread.start()
- 
+    
+    def on_button_click(self):
+        file_path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Open Excel File", "", "Excel Files (*.xlsx *.xls)")
+        
+        if file_path:
+            # 엑셀 파일을 pandas DataFrame으로 읽기
+            self.db_function.bookStatus2db_xls(file_path)
+            
+    def on_button_click_suggestion(self):
+        self.show_dialog()
  
     def set_item_color(self, item):
         status = item.text() 
@@ -262,7 +299,15 @@ class Ui_MainWindow(QtWidgets.QMainWindow):
             item.setBackground(QtGui.QColor("red")) 
             item.setForeground(QtGui.QColor("white"))  
 
+    def show_suggestions_by_date(self):
+        suggestion_list = self.db_function.suggestions_by_date()
 
+        # suggestion_list의 내용을 QTextEdit에 추가
+        for date, num in suggestion_list:
+            suggestions_text = "\n".join(f"{date} : {num} 개" for date, num in suggestion_list)
+            self.Suggestions.setText(suggestions_text)
+
+        
     @QtCore.pyqtSlot(object) 
     def update_book_list_1(self, highest_books):
         self.View_Book_List_1.clearContents()
@@ -413,12 +458,37 @@ class Ui_MainWindow(QtWidgets.QMainWindow):
     def start_time_update(self):
         self.timer = QtCore.QTimer(self)
         self.timer.timeout.connect(self.update_time)
-        self.timer.start(1000) 
+        self.timer.start(5000) 
 
     def update_time(self):
         current_time = QtCore.QDateTime.currentDateTime()
         self.Time.setDateTime(current_time)
 
+        
+    def show_dialog(self):
+        results = self.db_function.show_suggestions_list()
+        dialog = QtWidgets.QDialog(self)
+        
+        dialog.setWindowTitle(f"건의사항")
+        dialog.setGeometry(500, 500, 800, 1000)
+
+        layout = QtWidgets.QVBoxLayout()
+        dialog.setLayout(layout)
+        
+        label = QtWidgets.QLabel("건의사항 목록:")
+        layout.addWidget(label)
+
+        # QTextEdit 추가 및 결과 출력
+        text_edit = QtWidgets.QTextEdit()
+        text_edit.setReadOnly(True)
+        for row_num, row in enumerate(results, start=1):
+            text_edit.append(f"{row[2]}  :  {row[1]}")
+
+        layout.addWidget(text_edit)
+
+        dialog.exec()
+        
+        
 class Widget_Login(QtWidgets.QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -454,3 +524,9 @@ class Widget_Login(QtWidgets.QDialog):
         else:
             self.error_label.setText("아이디나 비밀번호를 다시 입력 해 주세요")
             return False
+
+        
+        
+
+    
+            
