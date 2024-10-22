@@ -30,7 +30,9 @@
 ---
 #### Software Architecture
 ![SW_Architecture](./sw_architecture.bmp)
-
+---
+#### Flow Chart
+![Flow Chart](./FlowChart.bmp)
 ---
 #### 사용 Software Tools & Frameworks 
 * Python
