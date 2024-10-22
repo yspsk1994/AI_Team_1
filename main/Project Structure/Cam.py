@@ -25,7 +25,7 @@ def cam1_process(widget_cam_1_queue, function_1_queue):
         print("Camera 1 released.")
         
 def cam2_process(widget_cam_2_queue, function_2_queue):
-    cap = cv2.VideoCapture(2)
+    cap = cv2.VideoCapture(1)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
     last_send_time = time.time()

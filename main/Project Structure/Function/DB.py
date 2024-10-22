@@ -8,6 +8,7 @@ import mysql.connector
 from mysql.connector import Error
 import pymysql
 import xlwt
+from collections import defaultdict
 
 class DB_Function:
     # DB 연결하기 함수
@@ -128,13 +129,37 @@ class DB_Function:
 
         # 데이터프레임의 각 행을 데이터베이스에 업데이트
         for index, row in df.iterrows():
-            sql = "UPDATE bookcase1 SET bookStatus = %s WHERE title = %s"
-            values = (row['도서상태'], row['제목'])
+            sql = """
+                INSERT bookcase1 
+                SET 
+                    제목 = %s,
+                    저자 = %s,
+                    출판사 = %s,
+                    ISBN = %s,
+                    출판일 = %s,
+                    청구기호 = %s,
+                    도서상태 = %s,
+                    주제 = %s,
+                    책장 = %s
+            """
+            values = (
+                row['제목'],
+                row['저자'],
+                row['출판사'],
+                row['ISBN'],
+                row['출판일'],
+                row['청구기호'],
+                row['도서상태'],
+                row['주제'],
+                row['책장'],
+            )
 
             try:
                 cursor.execute(sql, values)
+                connection.commit()
+                print("신간 도서 등록 완료!")
             except Error as e:
-                print(f"Error: '{e}'")
+                print(f"Error: '{e}' on row {index}")
 
         # 변경 사항 커밋
         connection.commit()
@@ -143,3 +168,77 @@ class DB_Function:
         # 연결 종료
         cursor.close()
         connection.close()
+        
+        
+        
+    def show_suggestions_list(self):
+
+        # MySQL 연결 정보
+        db = pymysql.connect(
+            host="10.10.16.157",  # MySQL 서버 주소
+            user="pushingman",  # MySQL 사용자 이름
+            password="p###hoHO1357",  # MySQL 비밀번호
+            database="smartlibrary"  # 사용할 데이터베이스 이름
+        )
+
+        # 커서 생성
+        cursor = db.cursor()
+
+        # 데이터를 추출할 SQL 쿼리
+        sql = "SELECT * FROM suggestions"
+
+        # SQL 쿼리 실행
+        cursor.execute(sql)
+
+        # 쿼리 결과를 가져옴
+        results = cursor.fetchall()
+
+        # 컬럼명 가져오기
+        columns = [desc[0] for desc in cursor.description]  
+            
+        for row_num, row in enumerate(results, start=1):
+            (f"{row[1]}")
+
+        # MySQL 연결 종료
+        cursor.close()
+        db.close()
+        
+        return results
+    
+    def suggestions_by_date(self):
+        # MySQL 연결 정보
+        db = pymysql.connect(
+            host="10.10.16.157",
+            user="pushingman",
+            password="p###hoHO1357",
+            database="smartlibrary"
+        )
+
+        # 커서 생성
+        cursor = db.cursor()
+
+        # 데이터를 추출할 SQL 쿼리
+        sql = "SELECT * FROM suggestions"
+        cursor.execute(sql)
+        results = cursor.fetchall()
+
+        # 컬럼명 가져오기
+        columns = [desc[0] for desc in cursor.description]
+
+        # 날짜별 건의사항 개수를 저장할 딕셔너리
+        suggestion_count = defaultdict(int)
+
+        # 건의사항 데이터를 날짜별로 집계
+        for row in results:
+            # 날짜 열의 인덱스 (예: 세 번째 열이 날짜라면 인덱스는 2)
+            date = row[2]  # row[2]가 날짜 정보라고 가정
+            suggestion_count[date] += 1
+
+        # MySQL 연결 종료
+        cursor.close()
+        db.close()
+
+        # 결과를 튜플 형태로 변환하여 반환
+        # 예: [('2024-10-22', 3), ('2024-10-21', 5)]
+        suggestion = [(date, count) for date, count in suggestion_count.items()]
+        return suggestion
