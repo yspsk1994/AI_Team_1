@@ -1,5 +1,7 @@
 # Intel AI Edge Team project 1조
 
+https://docs.google.com/presentation/d/11eHu6XhXAeMrRNQsAy2DfQQlQGY8WTk-GbzzGuaD-FM/edit#slide=id.g2a692d12221_0_316 
+
 #### 프로젝트 주제 : 「 스마트 도서관 」 
 ### *도서관 이용객의 편리와 직원의 업무 경감/시간 절약 등을 위한 도서관 관리 시스템*
 
