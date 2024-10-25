@@ -14,7 +14,7 @@ https://docs.google.com/presentation/d/11eHu6XhXAeMrRNQsAy2DfQQlQGY8WTk-GbzzGuaD
 
 ---
 #### 프로젝트 개발 동기 
-###### 코로나 19 이후 인한 사회 전반에 걸친 급격한 변화는 도서관의 제공 서비스 영역에도 급격히 이뤄졌다. 사서의 업무 가중과 불특정 이용자 응대에 대한 정신적 스트레스 증가로 인해, 사서라는 직무를 기피하게 되고, 이로 인해 작은 도서관에서부터 사서가 없어 운영이 힘들어 지고 있는 것이 현실이다. 이러한 문제점들을 우리 스마트 도서관의 기술로 해결이 되고, 긍정적인 방향으로 변화가 일어났으면 싶다.
+###### 코로나 19 이후 인한 사회 전반에 걸친 급격한 변화는 도서관의 제공 서비스 영역에도 급격히 이뤄졌다.<br> 사서의 업무 가중과 불특정 이용자 응대에 대한 정신적 스트레스 증가로 인해, 사서라는 직무를 기피하게 되고, 이로 인해 작은 도서관에서부터 사서가 없어 운영이 힘들어 지고 있는 것이 현실이다. 이러한 문제점들을 우리 스마트 도서관의 기술로 해결이 되고, 긍정적인 방향으로 변화가 일어났으면 싶다.
 ---
 #### UseCase
 *사서*
@@ -37,11 +37,11 @@ https://docs.google.com/presentation/d/11eHu6XhXAeMrRNQsAy2DfQQlQGY8WTk-GbzzGuaD
 ![Flow Chart](./FlowChart.bmp)
 ---
 #### 사용 Software Tools & Frameworks 
-* PyThon
+* Python
 * Linux
 * OpenCV
-* Pytorch
-* YOLOv8x-seg (fine tuning)
+* PyTorch
+* Yolov8x-seg (fine tuning)
 * PaddleOCR (fine tuning)
 * fuzzywuzzy
 ---
