@@ -25,7 +25,7 @@ https://docs.google.com/presentation/d/11eHu6XhXAeMrRNQsAy2DfQQlQGY8WTk-GbzzGuaD
 
 *이용자*
 ##### 1. 이용자가 궁금한 사항이 있을 때, 챗봇을 이용해서 즉각 궁금한 점을 해결 할 수 있다.
-##### 2. 글을 쓰면, 그림 일기로 만들어주는 기능을 통해 아이들의 책에 관한 흥미와 친밀함을 올려준다
+##### 2. 도서관에 관한 건의 사항이 있을 시, 비대면으로 챗봇을 통해 부담없고 솔직하게 의견을 전달 할 수 있다
 ---
 #### High Level Diagram
 ![High_level_Diagram](./high_level_diagram.bmp)
