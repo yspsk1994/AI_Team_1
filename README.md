@@ -54,11 +54,25 @@ https://docs.google.com/presentation/d/11eHu6XhXAeMrRNQsAy2DfQQlQGY8WTk-GbzzGuaD
 
 ---
 #### 결과물
-1. Main Program  
+## 1. Main Program<br>
+- 로그인 후 메인 프로그램으로 들어가게 됨.<br>
+- 메인화면에서 카메라 2개를 이용해 책장 2개의 책들을 실시간 감지 하여 상태를 표시하고 있음
 <img src="./MainProgram.gif" alt="MainProgram" width="50%">
 
-2. ChatBot  
+## 2. ChatBot<br>
+- flask를 이용해 pc버전을 모바일로 실행 시켜 동작하고 있음
 <img src="./chatbot.gif" alt="ChatBot" width="20%" height="50%">
+
+## 3. 건의사항 기능<br>
+- 이용자가 Chatbot을 이용해 도서관 건의사항을 적게 되면, 실시간으로 Main Program에서 알 수 있음.
+- Cam 2번을 통해 사용자가 chatbot을 이용해 건의사항을 작성 하고 있는 모습이 보임
+- 건의 사항 버튼을 누르면 건의사항 목록이 표시 됨
+<img src="./suggestions.gif" alt="suggestions" width="70%" height="70%">
+
+## 4. 신간 등록 기능<br>
+- 도서관 사서가 신간 등록 버튼을 누르고, 신간 db excel 파일을 업로드 하면, 자동으로 db에 등록
+  <img src="./addnewbooks.gif" alt="addnewbooks" width="60%" height="60%"> <img src="./addnewbooks_db.gif" alt="addnewbooks_db" width="60%" height="60%">
+
 
 ---
 #### 추가 수정 예정
