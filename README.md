@@ -37,19 +37,34 @@ https://docs.google.com/presentation/d/11eHu6XhXAeMrRNQsAy2DfQQlQGY8WTk-GbzzGuaD
 ![Flow Chart](./FlowChart.bmp)
 ---
 #### 사용 Software Tools & Frameworks 
-* Python
+* PyThon
+* Linux
 * OpenCV
 * Pytorch
-* YOLOv8
-* PaddleOCR
+* YOLOv8x-seg (fine tuning)
+* PaddleOCR (fine tuning)
 * fuzzywuzzy
 ---
 #### 프로젝트 개발 일정
----
-#### 모델 소개
----
-#### UML Diagram
----
-#### 결과물
+![WBS](./WBS.png)
+
 ---
 #### 역할
+<img src="./Role.png" alt="Role" width="60%" height="60%">
+
+---
+#### 결과물
+1. Main Program  
+<img src="./MainProgram.gif" alt="MainProgram" width="50%">
+
+2. ChatBot  
+<img src="./chatbot.gif" alt="ChatBot" width="20%" height="50%">
+
+---
+#### 추가 수정 예정
+* 프로그램 구조 변경
+* 프로그램 안정성
+* 책 상태 기능 개선
+* 분류 기호 세분화 적용
+* PaddleOCR Model 개선
+* ChatBot 개선
